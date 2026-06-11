@@ -133,7 +133,12 @@ def baseline_results_map(baseline):
 
 
 def _baseline_path(name, store_dir=None):
-    return Path(store_dir or DEFAULT_STORE_DIR) / f'{name}.json'
+    base = Path(store_dir or DEFAULT_STORE_DIR)
+    path = base / f'{name}.json'
+    resolved = path.resolve()
+    if not resolved.is_relative_to(base.resolve()):
+        raise ValueError(f'baseline name {name!r} escapes the store directory')
+    return path
 
 
 def save_baseline(baseline, name, store_dir=None):
@@ -158,14 +163,19 @@ def list_baselines(store_dir=None):
 
 
 def delete_baseline(name, store_dir=None):
-    _baseline_path(name, store_dir).unlink()
+    path = _baseline_path(name, store_dir)
+    if not path.exists():
+        raise FileNotFoundError(f'baseline "{name}" not found at {path}')
+    path.unlink()
 
 
 def compare_baseline(current, baseline, tolerance_pct=DEFAULT_TOLERANCE_PCT):
     """Compare {key: busBw_mean} against a stored baseline dict.
 
     Regressions beyond tolerance are findings (fail); improvements beyond
-    tolerance are informational; keys present on only one side produce warnings.
+    tolerance are informational and returned in the report's 'improvements'
+    list (part of the schema_version 1 contract); keys present on only one
+    side produce warnings.
     """
     base_map = baseline_results_map(baseline)
     findings, improvements, warnings = [], [], []
@@ -220,11 +230,19 @@ def compare_scaling(runs, tolerance_pct=DEFAULT_SCALING_TOLERANCE_PCT):
     """
     if len(runs) < 2:
         raise ValueError('compare_scaling needs at least two runs at different node counts')
+    if len({n for n, _ in runs}) < len(runs):
+        raise ValueError('compare_scaling: duplicate node counts in runs')
     runs = sorted(runs, key=lambda r: r[0])
     ref_n, ref_map = runs[0]
     findings, warnings = [], []
     points = 0
     for node_count, res in runs[1:]:
+        for key in sorted(set(ref_map) - set(res)):
+            if key[0] in SCALING_FLAT_COLLECTIVES:
+                warnings.append(
+                    f'{_key_str(key)}: missing in {node_count}-node run '
+                    f'(present in {ref_n}-node reference)'
+                )
         for key in sorted(res):
             name, size, dtype, in_place = key
             if name not in SCALING_FLAT_COLLECTIVES:

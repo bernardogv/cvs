@@ -120,6 +120,21 @@ class TestBaseline(unittest.TestCase):
         with self.assertRaises(FileNotFoundError):
             compare_lib.load_baseline('nope', store_dir=self.store)
 
+    def test_name_escaping_store_dir_raises(self):
+        b = compare_lib.make_baseline(compare_lib._rows_to_map(make_rows()), meta={'name': 'evil'})
+        with self.assertRaises(ValueError):
+            compare_lib.save_baseline(b, '../evil', store_dir=self.store)
+
+    def test_delete_baseline(self):
+        b = compare_lib.make_baseline(compare_lib._rows_to_map(make_rows()), meta={'name': 'a'})
+        compare_lib.save_baseline(b, 'a', store_dir=self.store)
+        compare_lib.delete_baseline('a', store_dir=self.store)
+        self.assertEqual(compare_lib.list_baselines(store_dir=self.store), [])
+
+    def test_delete_missing_baseline_raises(self):
+        with self.assertRaises(FileNotFoundError):
+            compare_lib.delete_baseline('nope', store_dir=self.store)
+
 
 class TestCompareBaseline(unittest.TestCase):
     def _baseline(self):
@@ -203,6 +218,19 @@ class TestCompareScaling(unittest.TestCase):
     def test_requires_two_runs(self):
         with self.assertRaises(ValueError):
             compare_lib.compare_scaling(self._runs({2: 1.0}))
+
+    def test_duplicate_node_counts_raise(self):
+        runs = self._runs({2: 1.0, 4: 1.0})
+        runs.append((4, compare_lib._rows_to_map(make_rows(scale=0.99, nodes=4))))
+        with self.assertRaises(ValueError):
+            compare_lib.compare_scaling(runs)
+
+    def test_key_missing_in_larger_run_warns(self):
+        runs = self._runs({2: 1.0, 4: 1.0})
+        del runs[1][1][('AllReduce', 1048576, 'float', 0)]
+        report = compare_lib.compare_scaling(runs)
+        self.assertTrue(any('4-node' in w for w in report['warnings']))
+        self.assertEqual(report['verdict'], 'pass')
 
     def test_scaling_report_contract_shape(self):
         report = compare_lib.compare_scaling(self._runs({2: 1.0, 4: 0.98, 8: 0.70}))
