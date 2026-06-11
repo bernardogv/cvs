@@ -199,3 +199,56 @@ def compare_baseline(current, baseline, tolerance_pct=DEFAULT_TOLERANCE_PCT):
     return _report('baseline', findings, warnings, tolerance_pct,
                    baseline_name=baseline.get('meta', {}).get('name', ''),
                    improvements=improvements, points_compared=len(common))
+
+
+# ---------------------------------------------------------------------------
+# Task 5: scaling-curve comparison
+# ---------------------------------------------------------------------------
+
+# Collectives whose busBw is expected to stay roughly flat as node count grows
+# on a healthy fabric. Conservative starter set; tune against real data.
+SCALING_FLAT_COLLECTIVES = {'AllReduce', 'AllGather', 'ReduceScatter', 'Broadcast'}
+DEFAULT_SCALING_TOLERANCE_PCT = 15.0
+
+
+def compare_scaling(runs, tolerance_pct=DEFAULT_SCALING_TOLERANCE_PCT):
+    """Validate curve shape across node counts.
+
+    runs: list of (node_count, {key: busBw_mean}). The smallest node count is
+    the reference; larger runs whose busBw sags more than tolerance below the
+    reference (for flat-expectation collectives) are findings.
+    """
+    if len(runs) < 2:
+        raise ValueError('compare_scaling needs at least two runs at different node counts')
+    runs = sorted(runs, key=lambda r: r[0])
+    ref_n, ref_map = runs[0]
+    findings, warnings = [], []
+    points = 0
+    for node_count, res in runs[1:]:
+        for key in sorted(res):
+            name, size, dtype, in_place = key
+            if name not in SCALING_FLAT_COLLECTIVES:
+                continue
+            if key not in ref_map:
+                warnings.append(f'{_key_str(key)}: missing in {ref_n}-node reference run')
+                continue
+            ref = ref_map[key]
+            if ref <= 0:
+                warnings.append(f'{_key_str(key)}: reference value is 0; skipping')
+                continue
+            points += 1
+            deviation_pct = (res[key] - ref) / ref * 100.0
+            if deviation_pct < -tolerance_pct:
+                findings.append({
+                    'collective': name,
+                    'size': size,
+                    'dtype': dtype,
+                    'in_place': in_place,
+                    'node_count': node_count,
+                    'bus_bw': res[key],
+                    'reference_node_count': ref_n,
+                    'reference_bus_bw': ref,
+                    'deviation_pct': round(deviation_pct, 2),
+                })
+    return _report('scaling', findings, warnings, tolerance_pct,
+                   node_counts=[n for n, _ in runs], points_compared=points)
