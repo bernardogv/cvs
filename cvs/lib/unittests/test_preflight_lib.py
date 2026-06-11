@@ -1,6 +1,11 @@
+import logging
 import unittest
+from unittest import mock
+
+from pssh.exceptions import ConnectionError as PsshConnectionError
 
 import cvs.lib.preflight_lib as preflight_lib
+from cvs.lib.parallel_ssh_lib import Pssh
 
 
 class FakePssh:
@@ -68,7 +73,12 @@ class TestRunPreflight(unittest.TestCase):
         phdl = FakePssh(HEALTHY, reachable=NODES[:1])
         report = preflight_lib.run_preflight(phdl, NODES, CONFIG)
         self.assertEqual(report['verdict'], 'fail')
-        self.assertTrue(any(f['check'] == 'reachability' for f in report['findings']))
+        # Exactly one finding for the dead node — reachability; the remaining
+        # checks skip it (one warning) instead of piling on 'no output' noise.
+        dead_findings = [f for f in report['findings'] if f['node'] == NODES[1]]
+        self.assertEqual([f['check'] for f in dead_findings], ['reachability'])
+        self.assertTrue(any(NODES[1] in w and 'remaining checks skipped' in w for w in report['warnings']))
+        self.assertEqual(report['nodes'], 2)  # original node count
 
     def test_rocm_version_mismatch_fails(self):
         responses = dict(HEALTHY)
@@ -118,6 +128,66 @@ class TestRunPreflight(unittest.TestCase):
         self.assertIn('rdma_devices', {c['check'] for c in report['checks']})
         report2 = preflight_lib.run_preflight(FakePssh(HEALTHY, NODES), NODES, CONFIG)
         self.assertNotIn('rdma_devices', {c['check'] for c in report2['checks']})
+
+
+class TestRunPreflightRealPssh(unittest.TestCase):
+    """Integration: drive run_preflight through the REAL Pssh with only
+    ParallelSSHClient mocked, reproducing the host-list aliasing —
+    Pssh.__init__ aliases the caller's list as reachable_hosts
+    (parallel_ssh_lib.py:43) and prune_unreachable_hosts .remove()s dead
+    nodes from it in place (:101)."""
+
+    def test_pruned_dead_node_still_yields_reachability_finding(self):
+        live, dead = '10.0.0.1', '10.0.0.2'
+
+        def lines_for(cmd):
+            if 'rocm-smi' in cmd:
+                return ['GPU[0]', 'GPU[1]']
+            if '/opt/rocm/.info/version' in cmd:
+                return ['7.1.0-86']
+            if 'test -x' in cmd:
+                return ['OK']
+            if 'is-active ufw' in cmd:
+                return ['inactive']
+            return ['preflight-probe']
+
+        class FakeClient:
+            """ParallelSSHClient stand-in: dead host raises pssh ConnectionError."""
+
+            def __init__(self, hosts, **kwargs):
+                self.hosts = list(hosts)
+
+            def run_command(self, cmd, **kwargs):
+                items = []
+                for h in self.hosts:
+                    item = mock.Mock()
+                    item.host = h
+                    if h == dead:
+                        item.stdout, item.stderr = iter(()), iter(())
+                        item.exception = PsshConnectionError('connect failed')
+                    else:
+                        item.stdout, item.stderr = iter(lines_for(cmd)), iter(())
+                        item.exception = None
+                    items.append(item)
+                return items
+
+        shared = [live, dead]  # the SAME list object handed to Pssh and run_preflight
+        with mock.patch('cvs.lib.parallel_ssh_lib.ParallelSSHClient', FakeClient):
+            phdl = Pssh(logging.getLogger(__name__), shared, user='amd', stop_on_errors=False)
+            report = preflight_lib.run_preflight(phdl, shared, CONFIG)
+
+        # Real Pssh pruned the aliased caller list in place during the probe...
+        self.assertEqual(shared, [live])
+        # ...but run_preflight's snapshot still surfaces the dead node:
+        finding_keys = {(f['node'], f['check']) for f in report['findings']}
+        self.assertIn((dead, 'reachability'), finding_keys)
+        self.assertEqual(report['verdict'], 'fail')
+        self.assertEqual(report['nodes'], 2)  # original count, not post-prune
+        # Dead node yields exactly the reachability finding — later checks skip it.
+        self.assertEqual([f for f in report['findings'] if f['node'] == dead and f['check'] != 'reachability'], [])
+        self.assertTrue(any(dead in w and 'unreachable' in w for w in report['warnings']))
+        # The healthy live node contributes no findings.
+        self.assertEqual([f for f in report['findings'] if f['node'] == live], [])
 
 
 if __name__ == '__main__':

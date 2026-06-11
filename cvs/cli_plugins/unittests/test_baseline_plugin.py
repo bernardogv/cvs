@@ -108,6 +108,66 @@ class TestBaselinePlugin(unittest.TestCase):
         # stop_on_errors=False: record unreachable hosts instead of raising.
         self.assertIs(pssh_kwargs.get('stop_on_errors'), False)
 
+    @mock.patch('cvs.cli_plugins.baseline_plugin.Pssh')
+    def test_capture_with_unreachable_head_node_leaves_meta_none(self, mock_pssh):
+        """Head node in phdl.unreachable_hosts -> rocm/gpu meta stays None."""
+        store_dir = Path(self.tmp.name) / 'store'
+        result = Path(self.tmp.name) / 'r.json'
+        result.write_text(json.dumps(make_rows(nodes=2)))
+        cluster_file = Path(self.tmp.name) / 'cluster.json'
+        cluster_file.write_text(json.dumps(CLUSTER))
+        handle = mock_pssh.return_value
+        handle.unreachable_hosts = ['10.0.0.1']
+        handle.exec.return_value = {'10.0.0.1': 'Error connecting to host 10.0.0.1\n'}
+        code = self._run(
+            [
+                'baseline',
+                'capture',
+                str(result),
+                '--name',
+                'dead-head',
+                '--store',
+                str(store_dir),
+                '--cluster_file',
+                str(cluster_file),
+            ]
+        )
+        self.assertEqual(code, 0)
+        meta = compare_lib.load_baseline('dead-head', store_dir=str(store_dir))['meta']
+        self.assertIsNone(meta['rocm_version'])
+        self.assertIsNone(meta['gpus_per_node'])
+
+    @mock.patch('cvs.cli_plugins.baseline_plugin.Pssh')
+    def test_capture_filters_abort_marker_from_meta(self, mock_pssh):
+        """Pssh stamps 'ABORT: Host Unreachable Error' into output dicts for
+        dead hosts (inform_unreachability) -- that junk must not become
+        meta.rocm_version even if unreachable_hosts is not consulted."""
+        store_dir = Path(self.tmp.name) / 'store'
+        result = Path(self.tmp.name) / 'r.json'
+        result.write_text(json.dumps(make_rows(nodes=2)))
+        cluster_file = Path(self.tmp.name) / 'cluster.json'
+        cluster_file.write_text(json.dumps(CLUSTER))
+        handle = mock_pssh.return_value
+        handle.unreachable_hosts = []
+        handle.exec.return_value = {'10.0.0.1': 'connect failed\n\nABORT: Host Unreachable Error'}
+        code = self._run(
+            [
+                'baseline',
+                'capture',
+                str(result),
+                '--name',
+                'abort-head',
+                '--store',
+                str(store_dir),
+                '--cluster_file',
+                str(cluster_file),
+            ]
+        )
+        self.assertEqual(code, 0)
+        meta = compare_lib.load_baseline('abort-head', store_dir=str(store_dir))['meta']
+        self.assertIsNone(meta['rocm_version'])
+        self.assertIsNone(meta['gpus_per_node'])
+
     def test_show_missing_exits_2(self):
         store_dir = Path(self.tmp.name) / 'store'
         self.assertEqual(self._run(['baseline', 'show', 'nope', '--store', str(store_dir)]), 2)

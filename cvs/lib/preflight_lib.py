@@ -29,16 +29,28 @@ def run_preflight(phdl, nodes, config):
     *phdl* must be a Pssh constructed with stop_on_errors=False
     (see module docstring).
     """
+    # Snapshot the caller's list: real Pssh ALIASES host_list as
+    # reachable_hosts (parallel_ssh_lib.py:43) and prune_unreachable_hosts
+    # .remove()s dead nodes from it in place (:101). Without this copy,
+    # pruning during the probe would also delete the node from *nodes* and
+    # the reachability check below would never report it.
+    nodes = list(nodes)
     checks = []
     warnings = []
     # Probe first: with stop_on_errors=False, an exec is what triggers Pssh's
     # unreachable-host pruning — reachability below reads the pruned list.
     phdl.exec('echo preflight-probe', timeout=EXEC_TIMEOUT_S, print_console=False)
     checks.extend(_check_reachability(phdl, nodes))
+    # Policy: an unreachable node gets exactly one finding (reachability);
+    # the remaining checks run on live nodes only, with one warning per
+    # skipped node instead of a pile of 'no output' noise.
+    reachable = set(getattr(phdl, 'reachable_hosts', nodes))
+    live = [n for n in nodes if n in reachable]
+    warnings.extend(f'node {n} unreachable; remaining checks skipped for it' for n in nodes if n not in reachable)
     checks.extend(
         _check_same_output(
             phdl,
-            nodes,
+            live,
             'rocm_version',
             'cat /opt/rocm/.info/version',
             hint='Install the same ROCm version on every node.',
@@ -52,7 +64,7 @@ def run_preflight(phdl, nodes, config):
         checks.extend(
             _check_ok(
                 phdl,
-                nodes,
+                live,
                 'rccl_tests_binary',
                 f'test -x {rccl_dir}/all_reduce_perf && echo OK || echo MISSING',
                 hint=f'Build rccl-tests on the node ({rccl_dir} missing all_reduce_perf).',
@@ -65,7 +77,7 @@ def run_preflight(phdl, nodes, config):
         checks.extend(
             _check_ok(
                 phdl,
-                nodes,
+                live,
                 'mpirun',
                 f'test -x {mpi_dir}/mpirun && echo OK || echo MISSING',
                 hint=f'Install Open MPI or fix mpi_dir ({mpi_dir}/mpirun not found).',
@@ -73,10 +85,10 @@ def run_preflight(phdl, nodes, config):
         )
     else:
         warnings.append('mpi_dir not configured; skipping mpirun check')
-    checks.extend(_check_gpu_count(phdl, nodes))
-    checks.extend(_check_firewall(phdl, nodes))
+    checks.extend(_check_gpu_count(phdl, live))
+    checks.extend(_check_firewall(phdl, live))
     if config.get('nic_model'):
-        checks.extend(_check_rdma(phdl, nodes))
+        checks.extend(_check_rdma(phdl, live))
 
     findings = [c for c in checks if not c['ok']]
     return {
@@ -86,6 +98,7 @@ def run_preflight(phdl, nodes, config):
         'findings': findings,
         'warnings': warnings,
         'checks': checks,
+        # Original node count: the snapshot above precedes any pruning.
         'nodes': len(nodes),
     }
 

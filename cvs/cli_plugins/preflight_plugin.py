@@ -56,7 +56,9 @@ class PreflightPlugin(SubcommandPlugin):
             }
         phdl = Pssh(
             log,
-            nodes,
+            # Copy (defense in depth): Pssh aliases the list it is given and
+            # prunes dead hosts from it in place; run_preflight also snapshots.
+            list(nodes),
             user=cluster.get('username'),
             pkey=cluster.get('priv_key_file'),  # None -> ssh-agent (later task)
             # Required by preflight_lib: lets Pssh record/prune unreachable

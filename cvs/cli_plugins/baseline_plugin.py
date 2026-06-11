@@ -122,9 +122,25 @@ def _cluster_facts(cluster_file):
         stop_on_errors=False,
     )
     rocm_out = phdl.exec('cat /opt/rocm/.info/version', timeout=EXEC_TIMEOUT_S, print_console=False)
-    rocm_version = (rocm_out.get(head_node) or '').strip() or None
+    rocm_version = (_head_output(phdl, head_node, rocm_out) or '').strip() or None
     smi_out = phdl.exec('rocm-smi --showid 2>/dev/null', timeout=EXEC_TIMEOUT_S, print_console=False)
     # Anchor at line start like preflight_lib: incidental 'GPU[' substrings
     # elsewhere in the output must not inflate the count.
-    gpu_count = len(re.findall(r'^GPU\[', smi_out.get(head_node) or '', re.MULTILINE))
+    gpu_count = len(re.findall(r'^GPU\[', _head_output(phdl, head_node, smi_out) or '', re.MULTILINE))
     return rocm_version, gpu_count or None
+
+
+def _head_output(phdl, head_node, out):
+    """Output string for *head_node*, or None if the node is unreachable.
+
+    With stop_on_errors=False, Pssh stamps exception text plus an
+    'ABORT: Host Unreachable Error' marker into the output dict for dead
+    hosts (inform_unreachability) — truthy junk that must not land in
+    baseline meta. Check both the pruned-host list and the marker.
+    """
+    if head_node in getattr(phdl, 'unreachable_hosts', ()):
+        return None
+    val = out.get(head_node) or ''
+    if 'ABORT: Host Unreachable Error' in val:
+        return None
+    return val
