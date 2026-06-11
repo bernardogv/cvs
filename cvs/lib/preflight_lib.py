@@ -6,6 +6,8 @@ Read-only cluster preflight: catch the failures that otherwise surface
 Report shape follows the compare_lib contract (schema_version 1):
 verdict/findings/warnings plus a full per-node 'checks' list.
 '''
+import re
+
 from cvs.lib.compare_lib import SCHEMA_VERSION
 
 
@@ -16,6 +18,9 @@ def run_preflight(phdl, nodes, config):
     checks.extend(_check_same_output(
         phdl, nodes, 'rocm_version', 'cat /opt/rocm/.info/version',
         hint='Install the same ROCm version on every node.'))
+    # Trust boundary: config values (rccl_tests_dir, mpi_dir) and node names come
+    # from the operator-controlled cluster/config files; they are deliberately
+    # interpolated into shell commands run on the operator's own nodes.
     rccl_dir = config.get('rccl_tests_dir', '')
     checks.extend(_check_ok(
         phdl, nodes, 'rccl_tests_binary',
@@ -85,7 +90,9 @@ def _check_gpu_count(phdl, nodes):
     out = phdl.exec('rocm-smi --showid 2>/dev/null', print_console=False)
     results = []
     for n in nodes:
-        count = (out.get(n) or '').count('GPU[')
+        # Anchor at line start so incidental 'GPU[' substrings elsewhere in the
+        # output (warnings, env dumps) don't inflate the count.
+        count = len(re.findall(r'^GPU\[', out.get(n) or '', re.MULTILINE))
         results.append(_result(
             n, 'gpu_count', count > 0, f'{count} GPUs visible',
             hint='rocm-smi sees no GPUs: check driver/amdgpu install and permissions.'))
@@ -104,6 +111,8 @@ def _check_firewall(phdl, nodes):
 
 
 def _check_rdma(phdl, nodes):
+    # Note: even when /sys/class/infiniband is absent (ls fails), `wc -l` still
+    # runs, prints '0', and exits 0 — no `|| echo 0` fallback is needed.
     out = phdl.exec('ls /sys/class/infiniband 2>/dev/null | wc -l', print_console=False)
     results = []
     for n in nodes:

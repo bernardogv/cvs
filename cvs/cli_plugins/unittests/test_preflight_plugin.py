@@ -87,6 +87,18 @@ class TestPreflightPlugin(unittest.TestCase):
         _, kwargs = mock_pssh.call_args
         self.assertIsNone(kwargs.get('pkey'))  # ssh-agent fallback
 
+    def test_cluster_file_without_node_dict_exits_2(self):
+        import contextlib
+        import io
+        cf = Path(self.tmp.name) / 'cluster_no_nodes.json'
+        cf.write_text(json.dumps({'username': 'amd'}))
+        args = self.parser.parse_args(['preflight', '--cluster_file', str(cf)])
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err), self.assertRaises(SystemExit) as ctx:
+            self.plugin.run(args)
+        self.assertEqual(ctx.exception.code, 2)
+        self.assertIn('node_dict', err.getvalue())
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -8,6 +8,8 @@ class FakePssh:
 
     def __init__(self, responses, reachable=None):
         # responses: {cmd_substring: {host: output}}
+        # NB: substring keys must remain pairwise non-overlapping across the
+        # check commands, or exec() may match the wrong response.
         self.responses = responses
         self.reachable_hosts = reachable or []
         self.commands = []

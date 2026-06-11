@@ -34,7 +34,7 @@ class PreflightPlugin(SubcommandPlugin):
     def run(self, args):
         try:
             report = self._preflight(args)
-        except (ValueError, FileNotFoundError, OSError, KeyError) as exc:
+        except (ValueError, FileNotFoundError, OSError) as exc:
             print(f'error: {exc}', file=sys.stderr)
             sys.exit(2)
         print(validation_report.render(report, args.format))
@@ -42,7 +42,10 @@ class PreflightPlugin(SubcommandPlugin):
 
     def _preflight(self, args):
         cluster = json.loads(Path(args.cluster_file).read_text())
-        nodes = list(cluster['node_dict'].keys())
+        node_dict = cluster.get('node_dict')
+        if not node_dict:
+            raise ValueError('cluster file missing required "node_dict" key')
+        nodes = list(node_dict.keys())
         config = {}
         if args.config_file:
             raw = json.loads(Path(args.config_file).read_text()).get('rccl', {})
