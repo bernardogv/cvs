@@ -1,4 +1,6 @@
 import argparse
+import contextlib
+import io
 import json
 import tempfile
 import unittest
@@ -44,13 +46,10 @@ class TestComparePlugin(unittest.TestCase):
         self.assertEqual(self._run(['compare', 'peers', str(bad)]), 2)
 
     def test_baseline_regression_exits_1(self):
-        baseline = compare_lib.make_baseline(
-            compare_lib._rows_to_map(make_rows()), meta={'name': 'good'}
-        )
+        baseline = compare_lib.make_baseline(compare_lib._rows_to_map(make_rows()), meta={'name': 'good'})
         compare_lib.save_baseline(baseline, 'good', store_dir=self.tmp.name)
         current = self._write('current', make_rows(scale=0.85))
-        code = self._run(['compare', 'baseline', current,
-                          '--against', 'good', '--store', self.tmp.name])
+        code = self._run(['compare', 'baseline', current, '--against', 'good', '--store', self.tmp.name])
         self.assertEqual(code, 1)
 
     def test_scaling_pass_exits_0(self):
@@ -59,7 +58,6 @@ class TestComparePlugin(unittest.TestCase):
         self.assertEqual(self._run(['compare', 'scaling', r2, r4]), 0)
 
     def test_json_format_prints_valid_json(self):
-        import contextlib, io
         files = [self._write(f'node{i}', make_rows()) for i in range(1, 4)]
         args = self.parser.parse_args(['compare', 'peers', *files, '--format', 'json'])
         buf = io.StringIO()
