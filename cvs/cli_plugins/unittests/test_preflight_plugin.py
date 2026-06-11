@@ -14,8 +14,7 @@ CLUSTER = {
     'node_dict': {'10.0.0.1': {'bmc_ip': 'NA'}, '10.0.0.2': {'bmc_ip': 'NA'}},
     'env_vars': {},
 }
-CONFIG = {'rccl': {'rccl_test_params': {'rccl_tests_dir': '/x'},
-                   'mpi_params': {'mpi_dir': '/y'}}}
+CONFIG = {'rccl': {'rccl_test_params': {'rccl_tests_dir': '/x'}, 'mpi_params': {'mpi_dir': '/y'}}}
 
 
 class TestPreflightPlugin(unittest.TestCase):
@@ -35,12 +34,16 @@ class TestPreflightPlugin(unittest.TestCase):
     @mock.patch('cvs.cli_plugins.preflight_plugin.Pssh')
     def test_pass_exits_0_and_builds_pssh_from_cluster_file(self, mock_pssh, mock_lib):
         mock_lib.run_preflight.return_value = {
-            'verdict': 'pass', 'findings': [], 'warnings': [], 'checks': [], 'mode': 'preflight',
-            'schema_version': 1, 'nodes': 2,
+            'verdict': 'pass',
+            'findings': [],
+            'warnings': [],
+            'checks': [],
+            'mode': 'preflight',
+            'schema_version': 1,
+            'nodes': 2,
         }
         args = self.parser.parse_args(
-            ['preflight', '--cluster_file', str(self.cluster_file),
-             '--config_file', str(self.config_file)]
+            ['preflight', '--cluster_file', str(self.cluster_file), '--config_file', str(self.config_file)]
         )
         with self.assertRaises(SystemExit) as ctx:
             self.plugin.run(args)
@@ -55,10 +58,15 @@ class TestPreflightPlugin(unittest.TestCase):
     @mock.patch('cvs.cli_plugins.preflight_plugin.Pssh')
     def test_fail_exits_1(self, mock_pssh, mock_lib):
         mock_lib.run_preflight.return_value = {
-            'verdict': 'fail', 'mode': 'preflight', 'schema_version': 1, 'nodes': 2,
-            'findings': [{'node': '10.0.0.2', 'check': 'firewall', 'ok': False,
-                          'detail': 'ufw: active', 'hint': 'disable ufw'}],
-            'warnings': [], 'checks': [],
+            'verdict': 'fail',
+            'mode': 'preflight',
+            'schema_version': 1,
+            'nodes': 2,
+            'findings': [
+                {'node': '10.0.0.2', 'check': 'firewall', 'ok': False, 'detail': 'ufw: active', 'hint': 'disable ufw'}
+            ],
+            'warnings': [],
+            'checks': [],
         }
         args = self.parser.parse_args(['preflight', '--cluster_file', str(self.cluster_file)])
         with self.assertRaises(SystemExit) as ctx:
@@ -78,8 +86,13 @@ class TestPreflightPlugin(unittest.TestCase):
         cf = Path(self.tmp.name) / 'cluster_nokey.json'
         cf.write_text(json.dumps(cluster))
         mock_lib.run_preflight.return_value = {
-            'verdict': 'pass', 'findings': [], 'warnings': [], 'checks': [],
-            'mode': 'preflight', 'schema_version': 1, 'nodes': 2,
+            'verdict': 'pass',
+            'findings': [],
+            'warnings': [],
+            'checks': [],
+            'mode': 'preflight',
+            'schema_version': 1,
+            'nodes': 2,
         }
         args = self.parser.parse_args(['preflight', '--cluster_file', str(cf)])
         with self.assertRaises(SystemExit):
@@ -90,6 +103,7 @@ class TestPreflightPlugin(unittest.TestCase):
     def test_cluster_file_without_node_dict_exits_2(self):
         import contextlib
         import io
+
         cf = Path(self.tmp.name) / 'cluster_no_nodes.json'
         cf.write_text(json.dumps({'username': 'amd'}))
         args = self.parser.parse_args(['preflight', '--cluster_file', str(cf)])

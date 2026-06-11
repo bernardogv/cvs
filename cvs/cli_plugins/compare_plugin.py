@@ -2,6 +2,7 @@
 cvs compare — peer / baseline / scaling comparison over aggregated rccl
 result JSON files. Exit codes: 0 pass, 1 validation failure, 2 usage error.
 '''
+
 import json
 import sys
 from pathlib import Path
@@ -14,8 +15,7 @@ from .base import SubcommandPlugin
 
 def _add_common(parser):
     parser.add_argument('--format', choices=validation_report.FORMATS, default='table')
-    parser.add_argument('--tolerance', type=float, default=None,
-                        help='deviation tolerance in percent')
+    parser.add_argument('--tolerance', type=float, default=None, help='deviation tolerance in percent')
 
 
 class ComparePlugin(SubcommandPlugin):
@@ -23,27 +23,24 @@ class ComparePlugin(SubcommandPlugin):
         return 'compare'
 
     def get_parser(self, subparsers):
-        parser = subparsers.add_parser(
-            'compare', help='Compare rccl results: peers, baseline, or scaling'
-        )
+        parser = subparsers.add_parser('compare', help='Compare rccl results: peers, baseline, or scaling')
         parser.set_defaults(_plugin=self)
         sub = parser.add_subparsers(dest='compare_mode', required=True)
 
         peers = sub.add_parser('peers', help='Each node vs fleet median (one file per node)')
-        peers.add_argument('result_files', nargs='+',
-                           help='per-node aggregated result JSONs; node name = file stem')
+        peers.add_argument('result_files', nargs='+', help='per-node aggregated result JSONs; node name = file stem')
         _add_common(peers)
 
         base = sub.add_parser('baseline', help='Current run vs a stored baseline')
         base.add_argument('result_file')
         base.add_argument('--against', required=True, help='baseline name')
-        base.add_argument('--store', default=None,
-                          help='baseline store dir (default ~/.cvs/baselines)')
+        base.add_argument('--store', default=None, help='baseline store dir (default ~/.cvs/baselines)')
         _add_common(base)
 
         scaling = sub.add_parser('scaling', help='Curve shape across node counts')
-        scaling.add_argument('result_files', nargs='+',
-                             help='aggregated result JSONs from runs at different node counts')
+        scaling.add_argument(
+            'result_files', nargs='+', help='aggregated result JSONs from runs at different node counts'
+        )
         _add_common(scaling)
         return parser
 
@@ -59,10 +56,7 @@ class ComparePlugin(SubcommandPlugin):
     def _build_report(self, args):
         tol = {} if args.tolerance is None else {'tolerance_pct': args.tolerance}
         if args.compare_mode == 'peers':
-            node_results = {
-                Path(f).stem: compare_lib.load_aggregated_results(f)
-                for f in args.result_files
-            }
+            node_results = {Path(f).stem: compare_lib.load_aggregated_results(f) for f in args.result_files}
             return compare_lib.compare_peers(node_results, **tol)
         if args.compare_mode == 'baseline':
             current = compare_lib.load_aggregated_results(args.result_file)
@@ -80,7 +74,5 @@ def _node_count_from_file(path):
     """Read the 'nodes' field from the first row of an aggregated result file."""
     rows = json.loads(Path(path).read_text())
     if not rows or not isinstance(rows, list) or not rows[0].get('nodes'):
-        raise ValueError(
-            f'{path}: rows carry no "nodes" metadata; scaling mode needs multinode results'
-        )
+        raise ValueError(f'{path}: rows carry no "nodes" metadata; scaling mode needs multinode results')
     return int(rows[0]['nodes'])

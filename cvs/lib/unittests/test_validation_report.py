@@ -40,8 +40,7 @@ class TestRender(unittest.TestCase):
 
     def test_table_improvements_render_as_key_value_pairs(self):
         baseline = compare_lib.make_baseline(compare_lib._rows_to_map(make_rows()))
-        report = compare_lib.compare_baseline(
-            compare_lib._rows_to_map(make_rows(scale=1.2)), baseline)
+        report = compare_lib.compare_baseline(compare_lib._rows_to_map(make_rows(scale=1.2)), baseline)
         self.assertTrue(report['improvements'])
         out = validation_report.render(report, 'table')
         self.assertIn('improvement: collective=', out)

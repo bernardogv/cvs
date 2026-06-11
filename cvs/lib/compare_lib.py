@@ -9,6 +9,7 @@ Report dicts returned by compare_* functions are a STABLE CONTRACT
 (~/Projects/amd/cluster-validation-plugin). Changing shapes requires a
 schema_version bump and a contract-test update there.
 '''
+
 import json
 import statistics
 from pathlib import Path
@@ -37,18 +38,13 @@ def load_aggregated_results(path):
             key = (row['name'], int(row['size']), row['type'], int(row['inPlace']))
             out[key] = float(row['busBw_mean'])
         except (KeyError, TypeError, ValueError) as exc:
-            raise ValueError(
-                f'{path}: invalid aggregated-result row {row!r}: {exc}'
-            ) from exc
+            raise ValueError(f'{path}: invalid aggregated-result row {row!r}: {exc}') from exc
     return out
 
 
 def _rows_to_map(rows):
     """Convert a list of aggregated-result dicts to {key: busBw_mean}."""
-    return {
-        (r['name'], int(r['size']), r['type'], int(r['inPlace'])): float(r['busBw_mean'])
-        for r in rows
-    }
+    return {(r['name'], int(r['size']), r['type'], int(r['inPlace'])): float(r['busBw_mean']) for r in rows}
 
 
 def _report(mode, findings, warnings, tolerance_pct, **extra):
@@ -94,18 +90,19 @@ def compare_peers(node_results, tolerance_pct=DEFAULT_TOLERANCE_PCT):
             deviation_pct = (bus_bw - median) / median * 100.0
             if deviation_pct < -tolerance_pct:
                 name, size, dtype, in_place = key
-                findings.append({
-                    'node': node,
-                    'collective': name,
-                    'size': size,
-                    'dtype': dtype,
-                    'in_place': in_place,
-                    'bus_bw': bus_bw,
-                    'fleet_median': median,
-                    'deviation_pct': round(deviation_pct, 2),
-                })
-    return _report('peers', findings, warnings, tolerance_pct,
-                   nodes=len(node_results), points_compared=points)
+                findings.append(
+                    {
+                        'node': node,
+                        'collective': name,
+                        'size': size,
+                        'dtype': dtype,
+                        'in_place': in_place,
+                        'bus_bw': bus_bw,
+                        'fleet_median': median,
+                        'deviation_pct': round(deviation_pct, 2),
+                    }
+                )
+    return _report('peers', findings, warnings, tolerance_pct, nodes=len(node_results), points_compared=points)
 
 
 # ---------------------------------------------------------------------------
@@ -206,9 +203,15 @@ def compare_baseline(current, baseline, tolerance_pct=DEFAULT_TOLERANCE_PCT):
             findings.append(entry)
         elif deviation_pct > tolerance_pct:
             improvements.append(entry)
-    return _report('baseline', findings, warnings, tolerance_pct,
-                   baseline_name=baseline.get('meta', {}).get('name', ''),
-                   improvements=improvements, points_compared=len(common))
+    return _report(
+        'baseline',
+        findings,
+        warnings,
+        tolerance_pct,
+        baseline_name=baseline.get('meta', {}).get('name', ''),
+        improvements=improvements,
+        points_compared=len(common),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -240,8 +243,7 @@ def compare_scaling(runs, tolerance_pct=DEFAULT_SCALING_TOLERANCE_PCT):
         for key in sorted(set(ref_map) - set(res)):
             if key[0] in SCALING_FLAT_COLLECTIVES:
                 warnings.append(
-                    f'{_key_str(key)}: missing in {node_count}-node run '
-                    f'(present in {ref_n}-node reference)'
+                    f'{_key_str(key)}: missing in {node_count}-node run (present in {ref_n}-node reference)'
                 )
         for key in sorted(res):
             name, size, dtype, in_place = key
@@ -257,16 +259,19 @@ def compare_scaling(runs, tolerance_pct=DEFAULT_SCALING_TOLERANCE_PCT):
             points += 1
             deviation_pct = (res[key] - ref) / ref * 100.0
             if deviation_pct < -tolerance_pct:
-                findings.append({
-                    'collective': name,
-                    'size': size,
-                    'dtype': dtype,
-                    'in_place': in_place,
-                    'node_count': node_count,
-                    'bus_bw': res[key],
-                    'reference_node_count': ref_n,
-                    'reference_bus_bw': ref,
-                    'deviation_pct': round(deviation_pct, 2),
-                })
-    return _report('scaling', findings, warnings, tolerance_pct,
-                   node_counts=[n for n, _ in runs], points_compared=points)
+                findings.append(
+                    {
+                        'collective': name,
+                        'size': size,
+                        'dtype': dtype,
+                        'in_place': in_place,
+                        'node_count': node_count,
+                        'bus_bw': res[key],
+                        'reference_node_count': ref_n,
+                        'reference_bus_bw': ref,
+                        'deviation_pct': round(deviation_pct, 2),
+                    }
+                )
+    return _report(
+        'scaling', findings, warnings, tolerance_pct, node_counts=[n for n, _ in runs], points_compared=points
+    )

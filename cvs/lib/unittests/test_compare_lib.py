@@ -78,15 +78,13 @@ class TestComparePeers(unittest.TestCase):
         report = compare_lib.compare_peers(fleet)
         self.assertEqual(
             set(report),
-            {'schema_version', 'mode', 'tolerance_pct', 'verdict',
-             'findings', 'warnings', 'nodes', 'points_compared'},
+            {'schema_version', 'mode', 'tolerance_pct', 'verdict', 'findings', 'warnings', 'nodes', 'points_compared'},
         )
         self.assertTrue(report['findings'])
         for finding in report['findings']:
             self.assertEqual(
                 set(finding),
-                {'node', 'collective', 'size', 'dtype', 'in_place',
-                 'bus_bw', 'fleet_median', 'deviation_pct'},
+                {'node', 'collective', 'size', 'dtype', 'in_place', 'bus_bw', 'fleet_median', 'deviation_pct'},
             )
 
     def test_fewer_than_three_nodes_skips_with_warning(self):
@@ -138,9 +136,7 @@ class TestBaseline(unittest.TestCase):
 
 class TestCompareBaseline(unittest.TestCase):
     def _baseline(self):
-        return compare_lib.make_baseline(
-            compare_lib._rows_to_map(make_rows()), meta={'name': 'good'}
-        )
+        return compare_lib.make_baseline(compare_lib._rows_to_map(make_rows()), meta={'name': 'good'})
 
     def test_identical_run_passes(self):
         current = compare_lib._rows_to_map(make_rows())
@@ -175,25 +171,30 @@ class TestCompareBaseline(unittest.TestCase):
         report = compare_lib.compare_baseline(current, self._baseline(), tolerance_pct=5.0)
         self.assertEqual(
             set(report),
-            {'schema_version', 'mode', 'tolerance_pct', 'verdict', 'findings',
-             'warnings', 'baseline_name', 'improvements', 'points_compared'},
+            {
+                'schema_version',
+                'mode',
+                'tolerance_pct',
+                'verdict',
+                'findings',
+                'warnings',
+                'baseline_name',
+                'improvements',
+                'points_compared',
+            },
         )
         self.assertTrue(report['findings'])
         for finding in report['findings']:
             self.assertEqual(
                 set(finding),
-                {'collective', 'size', 'dtype', 'in_place', 'bus_bw',
-                 'baseline_bus_bw', 'deviation_pct'},
+                {'collective', 'size', 'dtype', 'in_place', 'bus_bw', 'baseline_bus_bw', 'deviation_pct'},
             )
 
 
 class TestCompareScaling(unittest.TestCase):
     def _runs(self, scales):
         # scales: {node_count: scale_factor}
-        return [
-            (n, compare_lib._rows_to_map(make_rows(scale=s, nodes=n)))
-            for n, s in scales.items()
-        ]
+        return [(n, compare_lib._rows_to_map(make_rows(scale=s, nodes=n))) for n, s in scales.items()]
 
     def test_flat_curve_passes(self):
         report = compare_lib.compare_scaling(self._runs({2: 1.0, 4: 0.98, 8: 0.97}))
@@ -236,15 +237,32 @@ class TestCompareScaling(unittest.TestCase):
         report = compare_lib.compare_scaling(self._runs({2: 1.0, 4: 0.98, 8: 0.70}))
         self.assertEqual(
             set(report),
-            {'schema_version', 'mode', 'tolerance_pct', 'verdict', 'findings',
-             'warnings', 'node_counts', 'points_compared'},
+            {
+                'schema_version',
+                'mode',
+                'tolerance_pct',
+                'verdict',
+                'findings',
+                'warnings',
+                'node_counts',
+                'points_compared',
+            },
         )
         self.assertTrue(report['findings'])
         for finding in report['findings']:
             self.assertEqual(
                 set(finding),
-                {'collective', 'size', 'dtype', 'in_place', 'node_count',
-                 'bus_bw', 'reference_node_count', 'reference_bus_bw', 'deviation_pct'},
+                {
+                    'collective',
+                    'size',
+                    'dtype',
+                    'in_place',
+                    'node_count',
+                    'bus_bw',
+                    'reference_node_count',
+                    'reference_bus_bw',
+                    'deviation_pct',
+                },
             )
 
 

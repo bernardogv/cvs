@@ -29,9 +29,7 @@ class TestBaselinePlugin(unittest.TestCase):
         result = Path(self.tmp.name) / 'r.json'
         result.write_text(json.dumps(make_rows(nodes=2)))
         store = ['--store', str(store_dir)]
-        self.assertEqual(
-            self._run(['baseline', 'capture', str(result), '--name', 'mi300x-2n', *store]), 0
-        )
+        self.assertEqual(self._run(['baseline', 'capture', str(result), '--name', 'mi300x-2n', *store]), 0)
         loaded = compare_lib.load_baseline('mi300x-2n', store_dir=str(store_dir))
         self.assertEqual(loaded['meta']['name'], 'mi300x-2n')
         self.assertEqual(loaded['meta']['node_count'], 2)
@@ -53,17 +51,13 @@ class TestBaselinePlugin(unittest.TestCase):
         store_dir = Path(self.tmp.name) / 'store'
         bad = Path(self.tmp.name) / 'bad.json'
         bad.write_text('{}')
-        self.assertEqual(
-            self._run(['baseline', 'capture', str(bad), '--name', 'x',
-                       '--store', str(store_dir)]), 2
-        )
+        self.assertEqual(self._run(['baseline', 'capture', str(bad), '--name', 'x', '--store', str(store_dir)]), 2)
 
     def test_capture_name_with_path_separator_exits_2(self):
         store_dir = Path(self.tmp.name) / 'store'
         result = Path(self.tmp.name) / 'r.json'
         result.write_text(json.dumps(make_rows()))
-        code = self._run(['baseline', 'capture', str(result),
-                          '--name', 'sub/inner', '--store', str(store_dir)])
+        code = self._run(['baseline', 'capture', str(result), '--name', 'sub/inner', '--store', str(store_dir)])
         self.assertEqual(code, 2)
         self.assertEqual(compare_lib.list_baselines(store_dir=str(store_dir)), [])
 

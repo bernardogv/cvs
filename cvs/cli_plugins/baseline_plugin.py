@@ -2,6 +2,7 @@
 cvs baseline — capture/list/show/delete stored known-good result fingerprints.
 Exit codes: 0 ok, 2 usage/tool error.
 '''
+
 import json
 import sys
 from datetime import datetime, timezone
@@ -49,9 +50,7 @@ class BaselinePlugin(SubcommandPlugin):
         if args.baseline_cmd == 'capture':
             name = args.name
             if '/' in name or '\\' in name:
-                raise ValueError(
-                    f'baseline name {name!r} must not contain path separators'
-                )
+                raise ValueError(f'baseline name {name!r} must not contain path separators')
             results = compare_lib.load_aggregated_results(args.result_file)
             rows = json.loads(Path(args.result_file).read_text())
             meta = {
@@ -60,9 +59,7 @@ class BaselinePlugin(SubcommandPlugin):
                 'node_count': rows[0].get('nodes') if rows else None,
                 'source_result_file': str(args.result_file),
             }
-            path = compare_lib.save_baseline(
-                compare_lib.make_baseline(results, meta), name, store_dir=args.store
-            )
+            path = compare_lib.save_baseline(compare_lib.make_baseline(results, meta), name, store_dir=args.store)
             print(f'baseline "{name}" saved to {path}')
         elif args.baseline_cmd == 'list':
             for name in compare_lib.list_baselines(store_dir=args.store):

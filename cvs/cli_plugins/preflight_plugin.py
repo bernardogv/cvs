@@ -2,6 +2,7 @@
 cvs preflight — read-only cluster sanity gate (~1 min) before any long run.
 Exit codes: 0 pass, 1 checks failed, 2 usage/tool error.
 '''
+
 import json
 import logging
 import sys
@@ -21,13 +22,10 @@ class PreflightPlugin(SubcommandPlugin):
         return 'preflight'
 
     def get_parser(self, subparsers):
-        parser = subparsers.add_parser(
-            'preflight', help='Validate cluster readiness (SSH/ROCm/binaries/GPUs/firewall)'
-        )
+        parser = subparsers.add_parser('preflight', help='Validate cluster readiness (SSH/ROCm/binaries/GPUs/firewall)')
         parser.set_defaults(_plugin=self)
         parser.add_argument('--cluster_file', required=True)
-        parser.add_argument('--config_file', default=None,
-                            help='rccl config JSON (enables binary-path checks)')
+        parser.add_argument('--config_file', default=None, help='rccl config JSON (enables binary-path checks)')
         parser.add_argument('--format', choices=validation_report.FORMATS, default='table')
         return parser
 
@@ -55,7 +53,8 @@ class PreflightPlugin(SubcommandPlugin):
                 'nic_model': raw.get('cvs_params', {}).get('nic_model'),
             }
         phdl = Pssh(
-            log, nodes,
+            log,
+            nodes,
             user=cluster.get('username'),
             pkey=cluster.get('priv_key_file'),  # None -> ssh-agent (later task)
             env_vars=cluster.get('env_vars'),

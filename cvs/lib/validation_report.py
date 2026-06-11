@@ -2,6 +2,7 @@
 Render compare_lib / preflight_lib report dicts as table, csv, or json.
 json output is the machine contract; table is for humans; csv is findings-only.
 '''
+
 import csv
 import io
 import json
@@ -37,9 +38,11 @@ def _render_csv(report):
 def _render_table(report):
     lines = []
     verdict = report.get('verdict', 'unknown').upper()
-    lines.append(f"[{verdict}] mode={report.get('mode')} "
-                 f"tolerance={report.get('tolerance_pct')}% "
-                 f"points_compared={report.get('points_compared', 'n/a')}")
+    lines.append(
+        f"[{verdict}] mode={report.get('mode')} "
+        f"tolerance={report.get('tolerance_pct')}% "
+        f"points_compared={report.get('points_compared', 'n/a')}"
+    )
     findings = report.get('findings', [])
     if findings:
         cols = list(findings[0].keys())
