@@ -38,11 +38,13 @@ def _render_csv(report):
 def _render_table(report):
     lines = []
     verdict = report.get('verdict', 'unknown').upper()
-    lines.append(
-        f"[{verdict}] mode={report.get('mode')} "
-        f"tolerance={report.get('tolerance_pct')}% "
-        f"points_compared={report.get('points_compared', 'n/a')}"
-    )
+    header = [f"[{verdict}]", f"mode={report.get('mode')}"]
+    # Preflight reports carry neither field; omit rather than render 'None%'.
+    if report.get('tolerance_pct') is not None:
+        header.append(f"tolerance={report['tolerance_pct']}%")
+    if 'points_compared' in report:
+        header.append(f"points_compared={report['points_compared']}")
+    lines.append(' '.join(header))
     findings = report.get('findings', [])
     if findings:
         cols = list(findings[0].keys())

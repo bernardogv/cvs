@@ -3,6 +3,14 @@ Read-only cluster preflight: catch the failures that otherwise surface
 40 minutes into a run. Operates through an existing Pssh handle
 (phdl.exec(cmd) -> {host: output_str}); fully testable with a fake handle.
 
+The Pssh handle MUST be constructed with stop_on_errors=False. Pssh only
+records per-host connection failures and prunes them from reachable_hosts
+(via _process_output -> prune_unreachable_hosts) in that mode; with the
+default stop_on_errors=True the first exec against a dead node raises a
+pssh ConnectionError instead. Pruning happens as a side effect of an exec,
+so run_preflight issues a trivial probe exec before the reachability check
+reads phdl.reachable_hosts.
+
 Report shape follows the compare_lib contract (schema_version 1):
 verdict/findings/warnings plus a full per-node 'checks' list.
 '''
@@ -11,10 +19,21 @@ import re
 
 from cvs.lib.compare_lib import SCHEMA_VERSION
 
+# Per-command cap so one hung node can't stall the whole gate.
+EXEC_TIMEOUT_S = 30
+
 
 def run_preflight(phdl, nodes, config):
-    """Run all preflight checks. Returns a report dict (contract v1)."""
+    """Run all preflight checks. Returns a report dict (contract v1).
+
+    *phdl* must be a Pssh constructed with stop_on_errors=False
+    (see module docstring).
+    """
     checks = []
+    warnings = []
+    # Probe first: with stop_on_errors=False, an exec is what triggers Pssh's
+    # unreachable-host pruning — reachability below reads the pruned list.
+    phdl.exec('echo preflight-probe', timeout=EXEC_TIMEOUT_S, print_console=False)
     checks.extend(_check_reachability(phdl, nodes))
     checks.extend(
         _check_same_output(
@@ -28,26 +47,32 @@ def run_preflight(phdl, nodes, config):
     # Trust boundary: config values (rccl_tests_dir, mpi_dir) and node names come
     # from the operator-controlled cluster/config files; they are deliberately
     # interpolated into shell commands run on the operator's own nodes.
-    rccl_dir = config.get('rccl_tests_dir', '')
-    checks.extend(
-        _check_ok(
-            phdl,
-            nodes,
-            'rccl_tests_binary',
-            f'test -x {rccl_dir}/all_reduce_perf && echo OK || echo MISSING',
-            hint=f'Build rccl-tests on the node ({rccl_dir} missing all_reduce_perf).',
+    rccl_dir = config.get('rccl_tests_dir')
+    if rccl_dir:
+        checks.extend(
+            _check_ok(
+                phdl,
+                nodes,
+                'rccl_tests_binary',
+                f'test -x {rccl_dir}/all_reduce_perf && echo OK || echo MISSING',
+                hint=f'Build rccl-tests on the node ({rccl_dir} missing all_reduce_perf).',
+            )
         )
-    )
-    mpi_dir = config.get('mpi_dir', '/usr/local/bin')
-    checks.extend(
-        _check_ok(
-            phdl,
-            nodes,
-            'mpirun',
-            f'test -x {mpi_dir}/mpirun && echo OK || echo MISSING',
-            hint=f'Install Open MPI or fix mpi_dir ({mpi_dir}/mpirun not found).',
+    else:
+        warnings.append('rccl_tests_dir not configured; skipping rccl_tests_binary check')
+    mpi_dir = config.get('mpi_dir')
+    if mpi_dir:
+        checks.extend(
+            _check_ok(
+                phdl,
+                nodes,
+                'mpirun',
+                f'test -x {mpi_dir}/mpirun && echo OK || echo MISSING',
+                hint=f'Install Open MPI or fix mpi_dir ({mpi_dir}/mpirun not found).',
+            )
         )
-    )
+    else:
+        warnings.append('mpi_dir not configured; skipping mpirun check')
     checks.extend(_check_gpu_count(phdl, nodes))
     checks.extend(_check_firewall(phdl, nodes))
     if config.get('nic_model'):
@@ -59,7 +84,7 @@ def run_preflight(phdl, nodes, config):
         'mode': 'preflight',
         'verdict': 'fail' if findings else 'pass',
         'findings': findings,
-        'warnings': [],
+        'warnings': warnings,
         'checks': checks,
         'nodes': len(nodes),
     }
@@ -87,7 +112,7 @@ def _check_reachability(phdl, nodes):
 
 
 def _check_same_output(phdl, nodes, check, cmd, hint):
-    out = phdl.exec(cmd, print_console=False)
+    out = phdl.exec(cmd, timeout=EXEC_TIMEOUT_S, print_console=False)
     values = {n: (out.get(n) or '').strip() for n in nodes}
     distinct = {v for v in values.values() if v}
     consistent = len(distinct) == 1 and all(values.values())
@@ -104,7 +129,7 @@ def _check_same_output(phdl, nodes, check, cmd, hint):
 
 
 def _check_ok(phdl, nodes, check, cmd, hint):
-    out = phdl.exec(cmd, print_console=False)
+    out = phdl.exec(cmd, timeout=EXEC_TIMEOUT_S, print_console=False)
     return [
         _result(n, check, (out.get(n) or '').strip() == 'OK', (out.get(n) or 'no output').strip(), hint=hint)
         for n in nodes
@@ -112,7 +137,7 @@ def _check_ok(phdl, nodes, check, cmd, hint):
 
 
 def _check_gpu_count(phdl, nodes):
-    out = phdl.exec('rocm-smi --showid 2>/dev/null', print_console=False)
+    out = phdl.exec('rocm-smi --showid 2>/dev/null', timeout=EXEC_TIMEOUT_S, print_console=False)
     results = []
     for n in nodes:
         # Anchor at line start so incidental 'GPU[' substrings elsewhere in the
@@ -131,7 +156,7 @@ def _check_gpu_count(phdl, nodes):
 
 
 def _check_firewall(phdl, nodes):
-    out = phdl.exec('systemctl is-active ufw 2>/dev/null || true', print_console=False)
+    out = phdl.exec('systemctl is-active ufw 2>/dev/null || true', timeout=EXEC_TIMEOUT_S, print_console=False)
     results = []
     for n in nodes:
         state = (out.get(n) or 'unknown').strip()
@@ -150,7 +175,7 @@ def _check_firewall(phdl, nodes):
 def _check_rdma(phdl, nodes):
     # Note: even when /sys/class/infiniband is absent (ls fails), `wc -l` still
     # runs, prints '0', and exits 0 — no `|| echo 0` fallback is needed.
-    out = phdl.exec('ls /sys/class/infiniband 2>/dev/null | wc -l', print_console=False)
+    out = phdl.exec('ls /sys/class/infiniband 2>/dev/null | wc -l', timeout=EXEC_TIMEOUT_S, print_console=False)
     results = []
     for n in nodes:
         try:

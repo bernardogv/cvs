@@ -49,7 +49,9 @@ class PreflightPlugin(SubcommandPlugin):
             raw = json.loads(Path(args.config_file).read_text()).get('rccl', {})
             config = {
                 'rccl_tests_dir': raw.get('rccl_test_params', {}).get('rccl_tests_dir', ''),
-                'mpi_dir': raw.get('mpi_params', {}).get('mpi_dir', '/usr/local/bin'),
+                # No default: preflight_lib skips the mpirun check (with a
+                # warning) when mpi_dir is not configured.
+                'mpi_dir': raw.get('mpi_params', {}).get('mpi_dir', ''),
                 'nic_model': raw.get('cvs_params', {}).get('nic_model'),
             }
         phdl = Pssh(
@@ -57,6 +59,9 @@ class PreflightPlugin(SubcommandPlugin):
             nodes,
             user=cluster.get('username'),
             pkey=cluster.get('priv_key_file'),  # None -> ssh-agent (later task)
+            # Required by preflight_lib: lets Pssh record/prune unreachable
+            # hosts on the probe exec instead of raising ConnectionError.
+            stop_on_errors=False,
             env_vars=cluster.get('env_vars'),
         )
         return preflight_lib.run_preflight(phdl, nodes, config)

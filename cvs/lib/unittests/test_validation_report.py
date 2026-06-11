@@ -45,6 +45,16 @@ class TestRender(unittest.TestCase):
         out = validation_report.render(report, 'table')
         self.assertIn('improvement: collective=', out)
 
+    def test_table_preflight_report_omits_absent_fields(self):
+        report = {
+            'schema_version': 1, 'mode': 'preflight', 'verdict': 'pass',
+            'findings': [], 'warnings': [], 'checks': [], 'nodes': 2,
+        }
+        out = validation_report.render(report, 'table')
+        self.assertIn('PASS', out)
+        self.assertNotIn('None%', out)
+        self.assertNotIn('points_compared', out)
+
     def test_unknown_format_raises(self):
         with self.assertRaises(ValueError):
             validation_report.render(_fail_report(), 'yaml')

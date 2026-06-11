@@ -4,18 +4,32 @@ import cvs.lib.preflight_lib as preflight_lib
 
 
 class FakePssh:
-    """Mimics Pssh.exec returning {host: output_str}; records commands."""
+    """Mimics a Pssh handle constructed with stop_on_errors=False.
+
+    Real semantics mirrored here: reachable_hosts starts as the full host
+    list and is only pruned as a side effect of an exec (the preflight probe
+    is that first exec); every command — including the probe — is recorded.
+    """
 
     def __init__(self, responses, reachable=None):
         # responses: {cmd_substring: {host: output}}
         # NB: substring keys must remain pairwise non-overlapping across the
         # check commands, or exec() may match the wrong response.
         self.responses = responses
-        self.reachable_hosts = reachable or []
+        self._post_probe_reachable = reachable or []
+        # Like real Pssh.__init__: full host list until an exec prunes it.
+        self.reachable_hosts = list(NODES)
         self.commands = []
+        self.timeouts = []
+        self._probed = False
 
     def exec(self, cmd, timeout=None, print_console=True):
         self.commands.append(cmd)
+        self.timeouts.append(timeout)
+        if not self._probed:
+            # First exec triggers pruning, as in Pssh._process_output.
+            self.reachable_hosts = list(self._post_probe_reachable)
+            self._probed = True
         for sub, resp in self.responses.items():
             if sub in cmd:
                 return resp
@@ -78,6 +92,25 @@ class TestRunPreflight(unittest.TestCase):
         responses['is-active ufw'] = {NODES[0]: 'inactive', NODES[1]: 'active'}
         report = preflight_lib.run_preflight(FakePssh(responses, NODES), NODES, CONFIG)
         self.assertTrue(any(f['check'] == 'firewall' for f in report['findings']))
+
+    def test_probe_exec_precedes_reachability_and_sets_timeouts(self):
+        phdl = FakePssh(HEALTHY, reachable=NODES)
+        preflight_lib.run_preflight(phdl, NODES, CONFIG)
+        self.assertIn('preflight-probe', phdl.commands[0])
+        self.assertTrue(phdl.timeouts)
+        self.assertTrue(
+            all(t == preflight_lib.EXEC_TIMEOUT_S for t in phdl.timeouts),
+            f'every exec must pass EXEC_TIMEOUT_S, got {phdl.timeouts}',
+        )
+
+    def test_empty_config_skips_binary_checks_with_warnings(self):
+        report = preflight_lib.run_preflight(FakePssh(HEALTHY, NODES), NODES, {})
+        self.assertEqual(report['verdict'], 'pass')
+        names = {c['check'] for c in report['checks']}
+        self.assertNotIn('rccl_tests_binary', names)
+        self.assertNotIn('mpirun', names)
+        self.assertTrue(any('rccl_tests_dir' in w for w in report['warnings']))
+        self.assertTrue(any('mpi_dir' in w for w in report['warnings']))
 
     def test_rdma_check_only_when_nic_model_set(self):
         config = dict(CONFIG, nic_model='thor')

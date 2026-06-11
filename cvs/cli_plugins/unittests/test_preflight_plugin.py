@@ -51,6 +51,9 @@ class TestPreflightPlugin(unittest.TestCase):
         _, kwargs = mock_pssh.call_args
         self.assertEqual(kwargs.get('user'), 'amd')
         self.assertEqual(kwargs.get('pkey'), '/home/amd/.ssh/id_rsa')
+        # stop_on_errors=False is load-bearing: Pssh only records/prunes
+        # unreachable hosts in that mode instead of raising on first exec.
+        self.assertIs(kwargs.get('stop_on_errors'), False)
         nodes_arg = mock_lib.run_preflight.call_args[0][1]
         self.assertEqual(nodes_arg, ['10.0.0.1', '10.0.0.2'])
 
