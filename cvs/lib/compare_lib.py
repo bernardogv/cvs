@@ -26,20 +26,23 @@ def _key_str(key):
     return f'{name}/{size}/{dtype}/inPlace={in_place}'
 
 
-def load_aggregated_results(path):
-    """Load an aggregated rccl result JSON file into {key: busBw_mean}."""
+def load_aggregated_rows(path):
+    """Load an aggregated rccl result JSON file; return the validated raw row list."""
     path = Path(path)
     data = json.loads(path.read_text())
     if not isinstance(data, list):
         raise ValueError(f'{path}: expected a JSON list of aggregated results')
-    out = {}
     for row in data:
         try:
-            key = (row['name'], int(row['size']), row['type'], int(row['inPlace']))
-            out[key] = float(row['busBw_mean'])
+            (row['name'], int(row['size']), row['type'], int(row['inPlace']), float(row['busBw_mean']))
         except (KeyError, TypeError, ValueError) as exc:
             raise ValueError(f'{path}: invalid aggregated-result row {row!r}: {exc}') from exc
-    return out
+    return data
+
+
+def load_aggregated_results(path):
+    """Load an aggregated rccl result JSON file into {key: busBw_mean}."""
+    return _rows_to_map(load_aggregated_rows(path))
 
 
 def _rows_to_map(rows):

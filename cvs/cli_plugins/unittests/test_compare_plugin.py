@@ -45,6 +45,22 @@ class TestComparePlugin(unittest.TestCase):
         bad.write_text('{}')
         self.assertEqual(self._run(['compare', 'peers', str(bad)]), 2)
 
+    def test_peers_duplicate_stems_exit_2(self):
+        # Same stem from different dirs would silently collapse to one node.
+        files = []
+        for sub in ('a', 'b'):
+            d = Path(self.tmp.name) / sub
+            d.mkdir()
+            f = d / 'results.json'
+            f.write_text(json.dumps(make_rows()))
+            files.append(str(f))
+        err = io.StringIO()
+        args = self.parser.parse_args(['compare', 'peers', *files])
+        with contextlib.redirect_stderr(err), self.assertRaises(SystemExit) as ctx:
+            self.plugin.run(args)
+        self.assertEqual(ctx.exception.code, 2)
+        self.assertIn('duplicate node names', err.getvalue())
+
     def test_baseline_regression_exits_1(self):
         baseline = compare_lib.make_baseline(compare_lib._rows_to_map(make_rows()), meta={'name': 'good'})
         compare_lib.save_baseline(baseline, 'good', store_dir=self.tmp.name)

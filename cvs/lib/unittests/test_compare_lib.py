@@ -36,6 +36,33 @@ class TestLoadAggregatedResults(unittest.TestCase):
             compare_lib.load_aggregated_results(p)
 
 
+class TestLoadAggregatedRows(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+
+    def test_returns_validated_row_list(self):
+        rows = make_rows(nodes=2)
+        p = write_results(self.tmp.name, 'node1', rows)
+        self.assertEqual(compare_lib.load_aggregated_rows(p), rows)
+
+    def test_rejects_non_list(self):
+        p = Path(self.tmp.name) / 'bad.json'
+        p.write_text('{"name": "AllReduce"}')
+        with self.assertRaises(ValueError):
+            compare_lib.load_aggregated_rows(p)
+
+    def test_rejects_row_missing_fields(self):
+        p = write_results(self.tmp.name, 'bad', [{'name': 'AllReduce', 'size': 1}])
+        with self.assertRaises(ValueError):
+            compare_lib.load_aggregated_rows(p)
+
+    def test_results_map_matches_rows(self):
+        p = write_results(self.tmp.name, 'node1', make_rows())
+        rows = compare_lib.load_aggregated_rows(p)
+        self.assertEqual(compare_lib.load_aggregated_results(p), compare_lib._rows_to_map(rows))
+
+
 class TestComparePeers(unittest.TestCase):
     def _fleet(self, n=4):
         return {f'node{i}': compare_lib._rows_to_map(make_rows()) for i in range(1, n + 1)}
