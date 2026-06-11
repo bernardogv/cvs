@@ -106,3 +106,96 @@ def compare_peers(node_results, tolerance_pct=DEFAULT_TOLERANCE_PCT):
                 })
     return _report('peers', findings, warnings, tolerance_pct,
                    nodes=len(node_results), points_compared=points)
+
+
+# ---------------------------------------------------------------------------
+# Task 4: baseline store + baseline comparison
+# ---------------------------------------------------------------------------
+
+DEFAULT_STORE_DIR = Path.home() / '.cvs' / 'baselines'
+
+
+def make_baseline(results, meta=None):
+    """Build a baseline dict from {key: busBw_mean} plus caller-supplied meta."""
+    rows = [
+        {'collective': k[0], 'size': k[1], 'dtype': k[2], 'in_place': k[3], 'bus_bw': v}
+        for k, v in sorted(results.items())
+    ]
+    return {'schema_version': SCHEMA_VERSION, 'meta': dict(meta or {}), 'results': rows}
+
+
+def baseline_results_map(baseline):
+    """Inverse of make_baseline: baseline dict -> {key: busBw_mean}."""
+    return {
+        (r['collective'], int(r['size']), r['dtype'], int(r['in_place'])): float(r['bus_bw'])
+        for r in baseline['results']
+    }
+
+
+def _baseline_path(name, store_dir=None):
+    return Path(store_dir or DEFAULT_STORE_DIR) / f'{name}.json'
+
+
+def save_baseline(baseline, name, store_dir=None):
+    path = _baseline_path(name, store_dir)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(baseline, indent=2))
+    return path
+
+
+def load_baseline(name, store_dir=None):
+    path = _baseline_path(name, store_dir)
+    if not path.exists():
+        raise FileNotFoundError(f'baseline "{name}" not found at {path}')
+    return json.loads(path.read_text())
+
+
+def list_baselines(store_dir=None):
+    d = Path(store_dir or DEFAULT_STORE_DIR)
+    if not d.is_dir():
+        return []
+    return sorted(p.stem for p in d.glob('*.json'))
+
+
+def delete_baseline(name, store_dir=None):
+    _baseline_path(name, store_dir).unlink()
+
+
+def compare_baseline(current, baseline, tolerance_pct=DEFAULT_TOLERANCE_PCT):
+    """Compare {key: busBw_mean} against a stored baseline dict.
+
+    Regressions beyond tolerance are findings (fail); improvements beyond
+    tolerance are informational; keys present on only one side produce warnings.
+    """
+    base_map = baseline_results_map(baseline)
+    findings, improvements, warnings = [], [], []
+    common = sorted(set(current) & set(base_map))
+    only_current = sorted(set(current) - set(base_map))
+    only_base = sorted(set(base_map) - set(current))
+    if only_current:
+        warnings.append(f'not in baseline (skipped): {[_key_str(k) for k in only_current]}')
+    if only_base:
+        warnings.append(f'in baseline but not in this run: {[_key_str(k) for k in only_base]}')
+    for key in common:
+        ref = base_map[key]
+        if ref <= 0:
+            warnings.append(f'{_key_str(key)}: baseline value is 0; skipping')
+            continue
+        deviation_pct = (current[key] - ref) / ref * 100.0
+        name, size, dtype, in_place = key
+        entry = {
+            'collective': name,
+            'size': size,
+            'dtype': dtype,
+            'in_place': in_place,
+            'bus_bw': current[key],
+            'baseline_bus_bw': ref,
+            'deviation_pct': round(deviation_pct, 2),
+        }
+        if deviation_pct < -tolerance_pct:
+            findings.append(entry)
+        elif deviation_pct > tolerance_pct:
+            improvements.append(entry)
+    return _report('baseline', findings, warnings, tolerance_pct,
+                   baseline_name=baseline.get('meta', {}).get('name', ''),
+                   improvements=improvements, points_compared=len(common))

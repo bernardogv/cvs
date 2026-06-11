@@ -95,5 +95,130 @@ class TestComparePeers(unittest.TestCase):
         self.assertTrue(any('need >= 3' in w for w in report['warnings']))
 
 
+class TestBaseline(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.store = Path(self.tmp.name)
+
+    def test_save_and_load_roundtrip(self):
+        results = compare_lib._rows_to_map(make_rows())
+        baseline = compare_lib.make_baseline(results, meta={'name': 'test-2n', 'node_count': 2})
+        path = compare_lib.save_baseline(baseline, 'test-2n', store_dir=self.store)
+        self.assertTrue(path.exists())
+        loaded = compare_lib.load_baseline('test-2n', store_dir=self.store)
+        self.assertEqual(loaded['meta']['name'], 'test-2n')
+        self.assertEqual(compare_lib.baseline_results_map(loaded), results)
+
+    def test_list_baselines(self):
+        b = compare_lib.make_baseline(compare_lib._rows_to_map(make_rows()), meta={'name': 'a'})
+        compare_lib.save_baseline(b, 'a', store_dir=self.store)
+        compare_lib.save_baseline(b, 'b', store_dir=self.store)
+        self.assertEqual(compare_lib.list_baselines(store_dir=self.store), ['a', 'b'])
+
+    def test_load_missing_baseline_raises(self):
+        with self.assertRaises(FileNotFoundError):
+            compare_lib.load_baseline('nope', store_dir=self.store)
+
+
+class TestCompareBaseline(unittest.TestCase):
+    def _baseline(self):
+        return compare_lib.make_baseline(
+            compare_lib._rows_to_map(make_rows()), meta={'name': 'good'}
+        )
+
+    def test_identical_run_passes(self):
+        current = compare_lib._rows_to_map(make_rows())
+        report = compare_lib.compare_baseline(current, self._baseline())
+        self.assertEqual(report['verdict'], 'pass')
+        self.assertEqual(report['findings'], [])
+
+    def test_regression_flagged(self):
+        current = compare_lib._rows_to_map(make_rows(scale=0.88))  # 12% down
+        report = compare_lib.compare_baseline(current, self._baseline(), tolerance_pct=5.0)
+        self.assertEqual(report['verdict'], 'fail')
+        self.assertEqual(len(report['findings']), 6)
+        f = report['findings'][0]
+        self.assertIn('baseline_bus_bw', f)
+        self.assertLess(f['deviation_pct'], -5.0)
+
+    def test_improvement_reported_not_failed(self):
+        current = compare_lib._rows_to_map(make_rows(scale=1.2))
+        report = compare_lib.compare_baseline(current, self._baseline(), tolerance_pct=5.0)
+        self.assertEqual(report['verdict'], 'pass')
+        self.assertEqual(len(report['improvements']), 6)
+
+    def test_non_overlapping_keys_warn(self):
+        current = compare_lib._rows_to_map(make_rows(dtype='bfloat16'))
+        report = compare_lib.compare_baseline(current, self._baseline())
+        self.assertEqual(report['verdict'], 'pass')  # nothing comparable
+        self.assertTrue(report['warnings'])
+        self.assertEqual(report['points_compared'], 0)
+
+    def test_baseline_report_contract_shape(self):
+        current = compare_lib._rows_to_map(make_rows(scale=0.88))
+        report = compare_lib.compare_baseline(current, self._baseline(), tolerance_pct=5.0)
+        self.assertEqual(
+            set(report),
+            {'schema_version', 'mode', 'tolerance_pct', 'verdict', 'findings',
+             'warnings', 'baseline_name', 'improvements', 'points_compared'},
+        )
+        self.assertTrue(report['findings'])
+        for finding in report['findings']:
+            self.assertEqual(
+                set(finding),
+                {'collective', 'size', 'dtype', 'in_place', 'bus_bw',
+                 'baseline_bus_bw', 'deviation_pct'},
+            )
+
+
+class TestCompareScaling(unittest.TestCase):
+    def _runs(self, scales):
+        # scales: {node_count: scale_factor}
+        return [
+            (n, compare_lib._rows_to_map(make_rows(scale=s, nodes=n)))
+            for n, s in scales.items()
+        ]
+
+    def test_flat_curve_passes(self):
+        report = compare_lib.compare_scaling(self._runs({2: 1.0, 4: 0.98, 8: 0.97}))
+        self.assertEqual(report['verdict'], 'pass')
+        self.assertEqual(report['node_counts'], [2, 4, 8])
+
+    def test_sagging_curve_flagged(self):
+        report = compare_lib.compare_scaling(self._runs({2: 1.0, 4: 0.98, 8: 0.70}))
+        self.assertEqual(report['verdict'], 'fail')
+        self.assertTrue(all(f['node_count'] == 8 for f in report['findings']))
+        f = report['findings'][0]
+        self.assertEqual(f['reference_node_count'], 2)
+        self.assertLess(f['deviation_pct'], -15.0)
+
+    def test_unknown_collective_skipped(self):
+        runs = self._runs({2: 1.0, 4: 1.0})
+        # inject a non-flat-expectation collective into the 4-node run
+        runs[1][1][('AllToAllV', 1048576, 'float', 0)] = 1.0
+        report = compare_lib.compare_scaling(runs)
+        self.assertEqual(report['verdict'], 'pass')
+
+    def test_requires_two_runs(self):
+        with self.assertRaises(ValueError):
+            compare_lib.compare_scaling(self._runs({2: 1.0}))
+
+    def test_scaling_report_contract_shape(self):
+        report = compare_lib.compare_scaling(self._runs({2: 1.0, 4: 0.98, 8: 0.70}))
+        self.assertEqual(
+            set(report),
+            {'schema_version', 'mode', 'tolerance_pct', 'verdict', 'findings',
+             'warnings', 'node_counts', 'points_compared'},
+        )
+        self.assertTrue(report['findings'])
+        for finding in report['findings']:
+            self.assertEqual(
+                set(finding),
+                {'collective', 'size', 'dtype', 'in_place', 'node_count',
+                 'bus_bw', 'reference_node_count', 'reference_bus_bw', 'deviation_pct'},
+            )
+
+
 if __name__ == '__main__':
     unittest.main()
