@@ -59,6 +59,31 @@ class TestPreflightPlugin(unittest.TestCase):
 
     @mock.patch('cvs.cli_plugins.preflight_plugin.preflight_lib')
     @mock.patch('cvs.cli_plugins.preflight_plugin.Pssh')
+    def test_nodes_filter_restricts_subset(self, mock_pssh, mock_lib):
+        mock_lib.run_preflight.return_value = {
+            'verdict': 'pass',
+            'findings': [],
+            'warnings': [],
+            'checks': [],
+            'mode': 'preflight',
+            'schema_version': 1,
+            'nodes': 1,
+        }
+        args = self.parser.parse_args(['preflight', '--cluster_file', str(self.cluster_file), '--nodes', '10.0.0.2'])
+        with self.assertRaises(SystemExit):
+            self.plugin.run(args)
+        self.assertEqual(mock_lib.run_preflight.call_args[0][1], ['10.0.0.2'])
+
+    @mock.patch('cvs.cli_plugins.preflight_plugin.preflight_lib')
+    @mock.patch('cvs.cli_plugins.preflight_plugin.Pssh')
+    def test_unknown_node_exits_2(self, mock_pssh, mock_lib):
+        args = self.parser.parse_args(['preflight', '--cluster_file', str(self.cluster_file), '--nodes', '10.9.9.9'])
+        with self.assertRaises(SystemExit) as ctx:
+            self.plugin.run(args)
+        self.assertEqual(ctx.exception.code, 2)
+
+    @mock.patch('cvs.cli_plugins.preflight_plugin.preflight_lib')
+    @mock.patch('cvs.cli_plugins.preflight_plugin.Pssh')
     def test_fail_exits_1(self, mock_pssh, mock_lib):
         mock_lib.run_preflight.return_value = {
             'verdict': 'fail',

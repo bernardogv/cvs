@@ -12,6 +12,7 @@ import logging
 import sys
 from pathlib import Path
 
+import cvs.lib.node_select_lib as node_select_lib
 import cvs.lib.remote_exec_lib as remote_exec_lib
 import cvs.lib.validation_report as validation_report
 from cvs.lib.parallel_ssh_lib import Pssh
@@ -32,6 +33,7 @@ class ExecJsonPlugin(SubcommandPlugin):
         parser.set_defaults(_plugin=self)
         parser.add_argument('--cmd', required=True, help='Command to execute on all nodes')
         parser.add_argument('--cluster_file', required=True, help='Path to cluster configuration JSON file')
+        parser.add_argument('--nodes', default=None, help='comma-separated node subset (default: whole cluster)')
         parser.add_argument('--timeout', type=int, default=None, help='Per-command read timeout in seconds')
         parser.add_argument('--format', choices=validation_report.FORMATS, default='json')
         return parser
@@ -66,7 +68,7 @@ class ExecJsonPlugin(SubcommandPlugin):
         node_dict = cluster.get('node_dict')
         if not node_dict:
             raise ValueError('cluster file missing required "node_dict" key')
-        nodes = list(node_dict.keys())
+        nodes = node_select_lib.select_nodes(list(node_dict.keys()), args.nodes)
         phdl = Pssh(
             log,
             list(nodes),

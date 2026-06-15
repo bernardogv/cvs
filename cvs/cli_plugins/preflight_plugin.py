@@ -8,6 +8,7 @@ import logging
 import sys
 from pathlib import Path
 
+import cvs.lib.node_select_lib as node_select_lib
 import cvs.lib.preflight_lib as preflight_lib
 import cvs.lib.validation_report as validation_report
 from cvs.lib.parallel_ssh_lib import Pssh
@@ -26,6 +27,7 @@ class PreflightPlugin(SubcommandPlugin):
         parser.set_defaults(_plugin=self)
         parser.add_argument('--cluster_file', required=True)
         parser.add_argument('--config_file', default=None, help='rccl config JSON (enables binary-path checks)')
+        parser.add_argument('--nodes', default=None, help='comma-separated node subset (default: whole cluster)')
         parser.add_argument('--format', choices=validation_report.FORMATS, default='table')
         return parser
 
@@ -65,7 +67,7 @@ class PreflightPlugin(SubcommandPlugin):
         node_dict = cluster.get('node_dict')
         if not node_dict:
             raise ValueError('cluster file missing required "node_dict" key')
-        nodes = list(node_dict.keys())
+        nodes = node_select_lib.select_nodes(list(node_dict.keys()), args.nodes)
         config = {}
         if args.config_file:
             raw = json.loads(Path(args.config_file).read_text()).get('rccl', {})

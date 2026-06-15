@@ -54,6 +54,26 @@ class TestExecJsonPlugin(unittest.TestCase):
         self.assertEqual(report['verdict'], 'pass')
         self.assertEqual(len(report['nodes']), 2)
 
+    def test_nodes_filter_restricts_to_subset(self):
+        cf = self._cluster({**CLUSTER, 'priv_key_file': '/k'})
+        _, _, _, pssh_cls, _ = self._run(
+            ['exec-json', '--cmd', 'hostname', '--cluster_file', cf, '--nodes', '10.0.0.2'],
+            {'10.0.0.2': 'n2\n__CVS_EXIT__0__'},
+        )
+        # only the requested node is handed to Pssh
+        host_arg = pssh_cls.call_args[0][1]
+        self.assertEqual(host_arg, ['10.0.0.2'])
+
+    def test_unknown_node_exits_2(self):
+        cf = self._cluster({**CLUSTER, 'priv_key_file': '/k'})
+        args = self.parser.parse_args(['exec-json', '--cmd', 'hostname', '--cluster_file', cf, '--nodes', '10.9.9.9'])
+        err = io.StringIO()
+        with redirect_stderr(err):
+            with self.assertRaises(SystemExit) as ctx:
+                self.plugin.run(args)
+        self.assertEqual(ctx.exception.code, 2)
+        self.assertIn('10.9.9.9', err.getvalue())
+
     def test_nonzero_exit_exits_1(self):
         cf = self._cluster({**CLUSTER, 'priv_key_file': '/k'})
         code, out, _, _, _ = self._run(
