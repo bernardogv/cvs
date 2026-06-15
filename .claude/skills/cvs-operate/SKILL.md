@@ -16,22 +16,35 @@ agent: every one emits a **stable JSON contract** on `--format json` and uses
 0. set up     cvs generate cluster_json --hosts 10.0.0.1-8 --username amd \
                   --key_file ~/.ssh/id_rsa --output_json_file cluster.json
               cvs copy-config rccl/rccl_config.json --output config.json
-1. discover   cvs describe --format json
+1. discover   cvs describe --format json          # commands + their contracts
+              cvs list-json                         # test suites you can run
 2. validate   cvs validate --command <cmd> --cluster_file C [--config_file F] --format json
 3. preflight  cvs preflight --cluster_file C [--config_file F] --format json
-4. run        cvs run-json <test> --cluster_file C --config_file F --format json
+4. run        cvs run-json <suite> --cluster_file C --config_file F --format json
 5. compare    cvs compare peers node*.json --format json
               cvs compare baseline run.json --against <name> --format json
               cvs compare scaling run_2n.json run_4n.json ... --format json
 
 any time:     cvs exec-json --cmd "<shell>" --cluster_file C --format json
+target subset: add --nodes 10.0.0.1,10.0.0.3 to preflight / exec-json
 ```
 
 **Setting up configs (step 0).** Build the cluster file with `cvs generate
 cluster_json` (it expands host ranges like `10.0.0.1-8` and `host[1-10]`) and a
-test config with `cvs copy-config` from the bundled templates. Then *always*
-`cvs validate` the result before using it — a generated cluster file passes
-validation cleanly, so a failure means you edited in a mistake.
+test config with `cvs copy-config` from the bundled templates. For the exact
+input shape, `cvs schema cluster_file` / `cvs schema config_file` emit a JSON
+Schema you can validate against or generate from. Then *always* `cvs validate`
+the result before using it — a generated cluster file passes validation
+cleanly, so a failure means you edited in a mistake.
+
+**Discovering what to run (step 1).** `cvs describe` lists every *command*;
+`cvs list-json` lists every *test suite* (`{suite, module, group}`). Feed a
+`suite` name straight to `cvs run-json`. Both are machine-readable — never parse
+`cvs list`'s human table.
+
+**Targeting a subset.** `preflight` and `exec-json` take `--nodes a,b,c` to hit
+a rack or a suspect node instead of the whole fleet (omit for the whole cluster;
+an unknown node is exit 2).
 
 Always run **describe first** (step 1) — it tells you, machine-readably, every
 command, its arguments, the required keys of each input file, and what its exit
@@ -79,8 +92,10 @@ common core:
 | Command | Purpose | Read-only |
 |---------|---------|-----------|
 | `cvs describe` | machine catalog of the whole CLI | yes |
+| `cvs list-json` | machine catalog of test suites (feed a suite to run-json) | yes |
+| `cvs schema` | JSON Schema for cluster_file / config_file | yes |
 | `cvs validate` | offline check of cluster/config JSON for a command | yes |
-| `cvs preflight` | cluster sanity gate (SSH/ROCm/binaries/GPUs/firewall/RDMA) | yes |
+| `cvs preflight` | cluster sanity gate (SSH/ROCm/binaries/GPUs/firewall/RDMA) `--nodes` | yes |
 | `cvs run-json` | run a test, emit JSON results (not pytest text/HTML) | no |
 | `cvs exec-json` | run a shell command on every node, per-node JSON (reachability/exit/output) | no |
 | `cvs compare` | peers / baseline / scaling comparison of rccl results | yes |

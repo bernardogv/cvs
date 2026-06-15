@@ -35,8 +35,12 @@ agent-driven cluster-validation engine. Full design:
 | `cvs/cli_plugins/validate_plugin.py` | `cvs/cli_plugins/unittests/test_validate_plugin.py` |
 | `cvs/cli_plugins/run_json_plugin.py` | `cvs/cli_plugins/unittests/test_run_json_plugin.py` |
 | `cvs/cli_plugins/exec_json_plugin.py` | `cvs/cli_plugins/unittests/test_exec_json_plugin.py` |
+| `cvs/cli_plugins/list_json_plugin.py` | `cvs/cli_plugins/unittests/test_list_json_plugin.py` |
+| `cvs/cli_plugins/schema_plugin.py` | `cvs/cli_plugins/unittests/test_schema_plugin.py` |
 | `cvs/lib/input_validation_lib.py` | `cvs/lib/unittests/test_input_validation_lib.py` |
+| `cvs/lib/input_schema_lib.py` | `cvs/lib/unittests/test_input_schema_lib.py` |
 | `cvs/lib/junit_report_lib.py` | `cvs/lib/unittests/test_junit_report_lib.py` |
+| `cvs/lib/node_select_lib.py` | `cvs/lib/unittests/test_node_select_lib.py` |
 | `cvs/lib/remote_exec_lib.py` | `cvs/lib/unittests/test_remote_exec_lib.py` |
 
 `describe_plugin.py` is the **agent discovery keystone**: `cvs describe --format json`
