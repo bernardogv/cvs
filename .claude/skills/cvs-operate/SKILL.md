@@ -10,6 +10,39 @@ CVS is a cluster-validation CLI. These commands are designed to be driven by an
 agent: every one emits a **stable JSON contract** on `--format json` and uses
 **consistent exit codes**. Drive them; parse the JSON; never scrape human text.
 
+## Where `cvs` runs (execution location) — check this FIRST
+
+`cvs` must run somewhere with **SSH reachability to every cluster node** — almost
+always the **head node**, because the node IPs and `priv_key_file` in
+`cluster.json` are only valid from there. Separate two roles:
+
+- **You (the agent / brain)** decide and parse — you may be on a laptop.
+- **`cvs` (the hands)** SSHes to the nodes — it runs on the head node.
+
+Before running anything, determine where you are:
+
+- **Already on the head node** (working dir has the installed `cvs`, and `cvs`
+  can reach the nodes) → run commands directly, as written below.
+- **On a laptop / remote machine** → do **not** run `cvs` locally; it can't reach
+  the private compute nodes. Run every command **on the head node over SSH** and
+  parse the JSON that comes back (the JSON contract is exactly what makes this
+  work across the SSH pipe):
+
+  ```bash
+  ssh <headnode> 'cd <cvs_dir> && source .cvs_venv/bin/activate && \
+      cvs preflight --cluster_file cluster.json --format json'
+  ```
+
+  The input files (`cluster.json`, `config.json`) and any result JSONs live on
+  the **head node**, so `generate`/`copy-config`/`validate`/`compare` all run
+  there too (paths are head-node paths). Confirm the head-node host alias and the
+  cvs directory with the user if you don't know them. If an MCP layer
+  (cluster-validation-plugin) is available, prefer its tools — it wraps exactly
+  this SSH-to-head-node execution for you.
+
+Every command in this skill is written as `cvs ...`; when driving from a laptop,
+wrap it in `ssh <headnode> '... --format json'`.
+
 ## The loop
 
 ```

@@ -34,6 +34,12 @@ Always run `cvs describe` first to learn the surface; never hard-code commands o
 flags. Validate inputs and preflight the cluster before any long run — both fail
 fast and read-only.
 
+**Where `cvs` runs:** it must execute where it can SSH to every cluster node —
+normally the **head node**, not a laptop. If you're driving from a laptop, run
+each command on the head node over SSH (`ssh <headnode> 'cvs ... --format json'`)
+and parse the JSON that returns; the input/result files live on the head node.
+See the `cvs-operate` skill's "execution location" section.
+
 ## Install / run / test
 
 ```bash
