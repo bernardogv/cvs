@@ -131,11 +131,11 @@ class TestRunPreflight(unittest.TestCase):
 
 
 class TestRunPreflightRealPssh(unittest.TestCase):
-    """Integration: drive run_preflight through the REAL Pssh with only
-    ParallelSSHClient mocked, reproducing the host-list aliasing —
-    Pssh.__init__ aliases the caller's list as reachable_hosts
-    (parallel_ssh_lib.py:43) and prune_unreachable_hosts .remove()s dead
-    nodes from it in place (:101)."""
+    """Integration: drive run_preflight through the REAL (new multi-process)
+    Pssh with only ParallelSSHClient mocked. For a small host list it runs
+    in-process, delegating to cvs.lib.parallel.pssh.Pssh. Validates that a
+    dead node pruned during the preflight probe still surfaces as a
+    reachability finding in the report."""
 
     def test_pruned_dead_node_still_yields_reachability_finding(self):
         live, dead = '10.0.0.1', '10.0.0.2'
@@ -171,14 +171,16 @@ class TestRunPreflightRealPssh(unittest.TestCase):
                     items.append(item)
                 return items
 
-        shared = [live, dead]  # the SAME list object handed to Pssh and run_preflight
-        with mock.patch('cvs.lib.parallel_ssh_lib.ParallelSSHClient', FakeClient):
-            phdl = Pssh(logging.getLogger(__name__), shared, user='amd', stop_on_errors=False)
+        shared = [live, dead]
+        # Patch the client where the in-process Pssh actually constructs it.
+        with mock.patch('cvs.lib.parallel.pssh.ParallelSSHClient', FakeClient):
+            phdl = Pssh(logging.getLogger(__name__), shared, user='amd', pkey=None, stop_on_errors=False)
             report = preflight_lib.run_preflight(phdl, shared, CONFIG)
 
-        # Real Pssh pruned the aliased caller list in place during the probe...
-        self.assertEqual(shared, [live])
-        # ...but run_preflight's snapshot still surfaces the dead node:
+        # New Pssh copies the host list (the old in-place aliasing bug is fixed),
+        # so the caller's list is left intact...
+        self.assertEqual(shared, [live, dead])
+        # ...and run_preflight still surfaces the dead node:
         finding_keys = {(f['node'], f['check']) for f in report['findings']}
         self.assertIn((dead, 'reachability'), finding_keys)
         self.assertEqual(report['verdict'], 'fail')
