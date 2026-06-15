@@ -51,6 +51,25 @@ class BaselinePlugin(SubcommandPlugin):
             p.add_argument('--store', default=None)
         return parser
 
+    def describe(self):
+        return {
+            'summary': 'Capture/list/show/delete stored known-good result baselines (capture reads the head node).',
+            'read_only': False,
+            'exit_codes': {'0': 'ok', '2': 'usage or tool error'},
+            'input_files': [
+                {
+                    'arg': '--cluster_file',
+                    'format': 'json',
+                    'required_keys': ['node_dict'],
+                    'optional_keys': ['username', 'priv_key_file', 'env_vars'],
+                },
+            ],
+            'examples': [
+                'cvs baseline capture results.json --name gb200-2node',
+                'cvs baseline list',
+            ],
+        }
+
     def run(self, args):
         try:
             self._dispatch(args)

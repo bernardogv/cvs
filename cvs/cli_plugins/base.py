@@ -24,3 +24,14 @@ class SubcommandPlugin:
     def run(self, args):
         """Run the subcommand logic."""
         raise NotImplementedError
+
+    def describe(self):
+        """Optional structured metadata for ``cvs describe`` (agent discovery).
+
+        Override to expose semantics argparse cannot: a ``summary`` string, a
+        ``read_only`` bool, an ``exit_codes`` dict, an ``input_files`` list
+        (each ``{"arg", "format", "required_keys", "optional_keys"}``), and
+        ``examples``. Default returns no extra metadata; ``cvs describe`` then
+        falls back to argparse-derived args, help text, and the epilog.
+        """
+        return {}

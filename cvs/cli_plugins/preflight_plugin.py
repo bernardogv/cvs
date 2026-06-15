@@ -29,6 +29,28 @@ class PreflightPlugin(SubcommandPlugin):
         parser.add_argument('--format', choices=validation_report.FORMATS, default='table')
         return parser
 
+    def describe(self):
+        return {
+            'summary': 'Read-only cluster sanity gate (SSH/ROCm/binaries/GPUs/firewall/RDMA) before any long run.',
+            'read_only': True,
+            'exit_codes': {'0': 'pass', '1': 'checks failed', '2': 'usage or tool error'},
+            'input_files': [
+                {
+                    'arg': '--cluster_file',
+                    'format': 'json',
+                    'required_keys': ['node_dict'],
+                    'optional_keys': ['username', 'priv_key_file', 'env_vars'],
+                },
+                {
+                    'arg': '--config_file',
+                    'format': 'json',
+                    'required_keys': [],
+                    'optional_keys': ['rccl'],
+                },
+            ],
+            'examples': ['cvs preflight --cluster_file cluster.json --format json'],
+        }
+
     def run(self, args):
         try:
             report = self._preflight(args)

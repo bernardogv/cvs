@@ -43,6 +43,18 @@ class ComparePlugin(SubcommandPlugin):
         _add_common(scaling)
         return parser
 
+    def describe(self):
+        return {
+            'summary': 'Compare rccl results across peers, against a baseline, or along a scaling curve.',
+            'read_only': True,
+            'exit_codes': {'0': 'pass', '1': 'validation failure', '2': 'usage or tool error'},
+            'examples': [
+                'cvs compare peers node*.json --format json',
+                'cvs compare baseline run.json --against gb200-2node --format json',
+                'cvs compare scaling run_2n.json run_4n.json run_8n.json --format json',
+            ],
+        }
+
     def run(self, args):
         try:
             report = self._build_report(args)
