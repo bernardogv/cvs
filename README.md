@@ -1,3 +1,50 @@
+<!-- FORK NOTICE — keep this block on rebase; AMD's original README follows below. -->
+# CVS — Agent-Operable Fork
+
+This is a downstream fork of [ROCm/cvs](https://github.com/ROCm/cvs) reworked so an
+**AI agent (e.g. Claude Code) can drive cluster validation end to end**. It adds a
+machine-readable command surface on top of upstream CVS: every agent command emits
+a stable JSON contract (`--format json`) and uses consistent exit codes
+(`0` pass · `1` validation failure · `2` usage/tool error), so an agent can
+discover, validate, run, and compare without parsing human text.
+
+**What this fork adds**
+
+| Command | Purpose |
+|---------|---------|
+| `cvs describe` | machine-readable catalog of every command + its input contract |
+| `cvs list-json` | machine-readable catalog of runnable test suites |
+| `cvs schema cluster_file\|config_file` | JSON Schema for the input files |
+| `cvs validate` | offline check of cluster/config JSON before a run |
+| `cvs preflight` | read-only cluster sanity gate (SSH/ROCm/GPUs/firewall/RDMA), `--nodes` |
+| `cvs run-json` | run a test, emit JSON results instead of pytest text/HTML |
+| `cvs exec-json` | run a command on every node, per-node JSON (reachability/exit/output), `--nodes` |
+| `cvs compare` | peers / baseline / scaling comparison of rccl results |
+| `cvs baseline` | capture/list/show/delete known-good baselines |
+
+**Using it with Claude Code.** This repo ships its agent knowledge in `.claude/`
+and a root `CLAUDE.md`. Clone it, open a Claude Code session in the directory, and
+ask Claude to validate a cluster — it loads the **`cvs-operate`** skill (the
+discover → validate → preflight → run → compare playbook) automatically. See
+`CLAUDE.md` for the operating loop and `.claude/skills/cvs-operate/SKILL.md` for
+the full contract.
+
+**Quickstart**
+
+```bash
+make install && source .cvs_venv/bin/activate
+cvs describe --format json          # learn the whole CLI surface
+cvs generate cluster_json --hosts 10.0.0.1-8 --username amd \
+    --key_file ~/.ssh/id_rsa --output_json_file cluster.json
+cvs validate --command preflight --cluster_file cluster.json --format json
+cvs preflight --cluster_file cluster.json --format json
+```
+
+This fork stays mergeable with upstream: new functionality lives in new files and
+rebases on `ROCm/cvs` `main`. The upstream README follows.
+
+---
+
 # Cluster Validation Suite
 
 > [!NOTE]
