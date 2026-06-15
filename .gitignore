@@ -12,3 +12,6 @@ __pycache__/
 
 # Build distributions
 dist/
+
+# Claude Code local overrides (keep agent tooling, drop machine-specific bits)
+.claude/settings.local.json
