@@ -271,5 +271,62 @@ class TestRcclLib(unittest.TestCase):
         mock_fail_test.assert_not_called()
 
 
+class TestDetermineMpiPmlConfig(unittest.TestCase):
+    """determine_mpi_pml_config builds the mpirun --mca pml flag and UCX env.
+
+    UCX env is built piecewise: UCX_UNIFIED_MODE whenever UCX is active,
+    UCX_NET_DEVICES only when a device list is configured, and UCX_TLS only for
+    a concrete transport (not auto/none/tcp/empty).
+    """
+
+    def _call(self, mpi_pml, net_dev_list, ucx_tls):
+        # shdl/mpi_path/head_node are only used by the auto/ob1-detect path.
+        return rccl_lib.determine_mpi_pml_config(mpi_pml, None, None, None, net_dev_list, ucx_tls)
+
+    def test_ucx_concrete_tls_emits_all_three(self):
+        pml, ucx = self._call("ucx", "mlx5_0:1", "rc")
+        self.assertEqual(pml, "--mca pml ucx")
+        self.assertIn("UCX_UNIFIED_MODE=y", ucx)
+        self.assertIn("UCX_NET_DEVICES=mlx5_0:1", ucx)
+        self.assertIn("UCX_TLS=rc", ucx)
+
+    def test_ucx_tls_auto_is_not_pinned_but_devices_kept(self):
+        pml, ucx = self._call("ucx", "mlx5_0:1", "auto")
+        self.assertEqual(pml, "--mca pml ucx")
+        self.assertIn("UCX_UNIFIED_MODE=y", ucx)
+        self.assertIn("UCX_NET_DEVICES=mlx5_0:1", ucx)
+        self.assertNotIn("UCX_TLS", ucx)
+
+    def test_ucx_tls_tcp_default_is_not_pinned(self):
+        # 'tcp' is the caller default; pinning it forces the slow TCP path.
+        _, ucx = self._call("ucx", "mlx5_0:1", "tcp")
+        self.assertNotIn("UCX_TLS", ucx)
+        self.assertIn("UCX_NET_DEVICES=mlx5_0:1", ucx)
+
+    def test_empty_net_dev_list_emits_no_device_pin(self):
+        # An empty UCX_NET_DEVICES= pin is itself broken; omit it.
+        _, ucx = self._call("ucx", "", "auto")
+        self.assertIn("UCX_UNIFIED_MODE=y", ucx)
+        self.assertNotIn("UCX_NET_DEVICES", ucx)
+
+    def test_ob1_has_no_ucx_env(self):
+        pml, ucx = self._call("ob1", "mlx5_0:1", "rc")
+        self.assertEqual(pml, "--mca pml ob1")
+        self.assertEqual(ucx, "")
+
+    @patch("cvs.lib.rccl_lib.is_ucx_available_in_mpi", return_value=True)
+    def test_auto_with_ucx_available_builds_ucx_env(self, _mock_avail):
+        pml, ucx = self._call("auto", "mlx5_0:1", "rc")
+        self.assertEqual(pml, "")  # auto leaves pml unset when UCX is available
+        self.assertIn("UCX_NET_DEVICES=mlx5_0:1", ucx)
+        self.assertIn("UCX_TLS=rc", ucx)
+
+    @patch("cvs.lib.rccl_lib.is_ucx_available_in_mpi", return_value=False)
+    def test_auto_without_ucx_falls_back_to_ob1(self, _mock_avail):
+        pml, ucx = self._call("auto", "mlx5_0:1", "rc")
+        self.assertEqual(pml, "--mca pml ob1")
+        self.assertEqual(ucx, "")
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -250,15 +250,25 @@ def determine_mpi_pml_config(mpi_pml, shdl, mpi_path, head_node, net_dev_list, u
         ucx_available = is_ucx_available_in_mpi(shdl, mpi_path, head_node)
         pml_param = "--mca pml ob1" if not ucx_available else ""
 
-    # Only pin UCX_TLS when a concrete transport is requested. Passing
-    # 'UCX_TLS=auto' literally is not the same as letting UCX auto-select -- it
-    # pins to a non-transport token and can steer UCX onto a slower path. For
-    # auto/none/tcp/empty, emit no UCX_TLS pin so UCX chooses (matches the
-    # known-good bare mpirun command).
-    if ucx_available and ucx_tls and ucx_tls.lower() not in ("auto", "none", "tcp", ""):
-        ucx_params = f"-x UCX_UNIFIED_MODE=y -x UCX_NET_DEVICES={net_dev_list} -x UCX_TLS={ucx_tls} "
-    else:
-        ucx_params = ""
+    # Build the UCX env piecewise so device pinning and unified mode survive even
+    # when UCX_TLS must not be pinned:
+    #   - UCX_UNIFIED_MODE: always, when UCX is active.
+    #   - UCX_NET_DEVICES: only when a device list is configured. An empty
+    #     'UCX_NET_DEVICES=' pin is itself broken, so omit it.
+    #   - UCX_TLS: only for a concrete transport. 'auto' is not a real transport
+    #     token (pinning it can steer UCX onto a slow path); 'tcp' is the caller
+    #     default and pinning it forces the slow TCP path; 'none'/'' are
+    #     nonsensical pins. For these, omit UCX_TLS so UCX auto-selects (matches
+    #     the known-good bare mpirun command). An explicit 'tcp' is thus not
+    #     honored as a pin -- set a concrete transport (e.g. 'rc') to force one.
+    ucx_parts = []
+    if ucx_available:
+        ucx_parts.append("-x UCX_UNIFIED_MODE=y")
+        if net_dev_list:
+            ucx_parts.append(f"-x UCX_NET_DEVICES={net_dev_list}")
+        if ucx_tls and ucx_tls.lower() not in ("auto", "none", "tcp", ""):
+            ucx_parts.append(f"-x UCX_TLS={ucx_tls}")
+    ucx_params = (" ".join(ucx_parts) + " ") if ucx_parts else ""
 
     return pml_param, ucx_params
 
