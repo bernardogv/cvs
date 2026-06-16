@@ -15,3 +15,11 @@ dist/
 
 # Claude Code local overrides (keep agent tooling, drop machine-specific bits)
 .claude/settings.local.json
+
+# Local cluster/run scratch at the repo root (machine-specific: IPs, key paths,
+# env scripts). Anchored with a leading "/" so bundled sample inputs under
+# cvs/input/ (e.g. cvs/input/cluster_file/cluster.json) stay tracked.
+/cluster*.json
+/config*.json
+/thor_env.sh
+/apply_patches.py
