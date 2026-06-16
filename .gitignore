@@ -15,3 +15,9 @@ dist/
 
 # Claude Code local overrides (keep agent tooling, drop machine-specific bits)
 .claude/settings.local.json
+
+# Local cluster/run scratch (machine-specific: IPs, key paths, env scripts)
+cluster*.json
+config*.json
+thor_env.sh
+apply_patches.py
