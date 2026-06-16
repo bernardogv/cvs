@@ -644,7 +644,8 @@ def rccl_regression(
     log.info(f'Starting RCCL Test ..........................................{test_name}')
 
     # Extract parameters from grouped dicts
-    mpi_dir = mpi_params.get('mpi_dir', '/usr/local/bin')
+    # Default is the Open MPI root; the launch command appends /bin/mpirun.
+    mpi_dir = mpi_params.get('mpi_dir', '/usr/local')
     no_of_nodes = int(mpi_params.get('no_of_nodes', 2))
     no_of_local_ranks = int(mpi_params.get('no_of_local_ranks', 8))
     mpi_pml = mpi_params.get('mpi_pml', 'auto')
@@ -820,7 +821,8 @@ def rccl_perf(
     log.info(f'Starting RCCL Test ..........................................{test_name}')
 
     # Extract parameters from grouped dicts
-    mpi_dir = mpi_params.get('mpi_dir', '/usr/local/bin')
+    # Default is the Open MPI root; the launch command appends /bin/mpirun.
+    mpi_dir = mpi_params.get('mpi_dir', '/usr/local')
     no_of_nodes = int(mpi_params.get('no_of_nodes', 2))
     no_of_local_ranks = int(mpi_params.get('no_of_local_ranks', 8))
     mpi_pml = mpi_params.get('mpi_pml', 'auto')
