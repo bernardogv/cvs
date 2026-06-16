@@ -96,6 +96,28 @@ class TestRunJsonPlugin(unittest.TestCase):
         self.assertIn('/x/test_agfhc.py::test_a', pytest_args)
         self.assertIn('/x/test_agfhc.py::test_b', pytest_args)
 
+    def test_parametrized_case_id_becomes_pytest_target(self):
+        # The id from `cvs list-json <suite>` (e.g. test_rccl_perf[all_reduce_perf])
+        # is forwarded verbatim as a single pytest node target — running exactly
+        # that one collective, not the whole suite.
+        _, _, _, pmain = self._run(
+            [
+                'run-json',
+                'rccl_perf',
+                'test_rccl_perf[all_reduce_perf]',
+                '--cluster_file',
+                'c.json',
+                '--config_file',
+                'cfg.json',
+            ],
+            PASS_JUNIT,
+            found='/cvs/tests/rccl/rccl_perf.py',
+        )
+        pytest_args = pmain.call_args[0][0]
+        self.assertIn('/cvs/tests/rccl/rccl_perf.py::test_rccl_perf[all_reduce_perf]', pytest_args)
+        # only the one selected target, not the whole-file target
+        self.assertNotIn('/cvs/tests/rccl/rccl_perf.py', pytest_args)
+
 
 if __name__ == '__main__':
     unittest.main()
