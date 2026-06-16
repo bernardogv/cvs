@@ -5,7 +5,7 @@
             "no_of_local_ranks": "8",
             "_comment_mpi_pml": "MPI Point-to-Point Messaging Layer: 'auto' (auto-detect UCX support), 'ucx' (force UCX), or 'ob1' (force OpenIB/TCP fallback). This remains in config because it is an MPI launch option, not an env-script setting.",
             "mpi_pml": "auto",
-            "mpi_dir": "/home/{user-id}/openmpi/bin",
+            "mpi_dir": "/home/{user-id}/openmpi",
             "mpi_oob_port": "eth0"
         },
 
