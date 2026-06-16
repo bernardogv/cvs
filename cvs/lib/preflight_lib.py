@@ -79,8 +79,8 @@ def run_preflight(phdl, nodes, config):
                 phdl,
                 live,
                 'mpirun',
-                f'test -x {mpi_dir}/mpirun && echo OK || echo MISSING',
-                hint=f'Install Open MPI or fix mpi_dir ({mpi_dir}/mpirun not found).',
+                f'test -x {mpi_dir}/bin/mpirun && echo OK || echo MISSING',
+                hint=f'Install Open MPI or fix mpi_dir ({mpi_dir}/bin/mpirun not found).',
             )
         )
     else:

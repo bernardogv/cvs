@@ -52,7 +52,9 @@ HEALTHY = {
 }
 CONFIG = {
     'rccl_tests_dir': '/home/u/rccl-tests/build',
-    'mpi_dir': '/home/u/openmpi/bin',
+    # mpi_dir is the Open MPI root; the mpirun check appends /bin/mpirun,
+    # matching how rccl_lib builds the launch command ({mpi_dir}/bin/mpirun).
+    'mpi_dir': '/home/u/openmpi',
 }
 
 
@@ -102,6 +104,20 @@ class TestRunPreflight(unittest.TestCase):
         responses['is-active ufw'] = {NODES[0]: 'inactive', NODES[1]: 'active'}
         report = preflight_lib.run_preflight(FakePssh(responses, NODES), NODES, CONFIG)
         self.assertTrue(any(f['check'] == 'firewall' for f in report['findings']))
+
+    def test_mpirun_check_uses_bin_subdir(self):
+        # mpi_dir is the Open MPI root; the launcher in rccl_lib runs
+        # {mpi_dir}/bin/mpirun, so preflight must probe the same path. A prior
+        # bug checked {mpi_dir}/mpirun and reported MISSING on a healthy node.
+        phdl = FakePssh(HEALTHY, reachable=NODES)
+        report = preflight_lib.run_preflight(phdl, NODES, CONFIG)
+        mpirun_cmds = [c for c in phdl.commands if 'mpirun' in c]
+        self.assertTrue(mpirun_cmds, 'expected an mpirun preflight check')
+        self.assertTrue(
+            all('/home/u/openmpi/bin/mpirun' in c for c in mpirun_cmds),
+            f'mpirun check must probe {{mpi_dir}}/bin/mpirun, got {mpirun_cmds}',
+        )
+        self.assertEqual(report['verdict'], 'pass')
 
     def test_probe_exec_precedes_reachability_and_sets_timeouts(self):
         phdl = FakePssh(HEALTHY, reachable=NODES)
