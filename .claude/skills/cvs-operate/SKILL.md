@@ -75,6 +75,38 @@ cleanly, so a failure means you edited in a mistake.
 `suite` name straight to `cvs run-json`. Both are machine-readable — never parse
 `cvs list`'s human table.
 
+**Picking a specific test/case within a suite.** A suite (e.g. `rccl_perf`) is
+usually *parametrized* into many cases. Drill in with `cvs list-json <suite>` to
+get the selectable case ids as JSON:
+
+```
+cvs list-json rccl_perf
+# -> { "suite":"rccl_perf", "tests":[
+#        {"id":"test_rccl_perf[all_reduce_perf]","function":"test_rccl_perf","params":"all_reduce_perf"}, ...]}
+```
+
+Run one specific case by passing its `id` to run-json:
+
+```
+cvs run-json rccl_perf "test_rccl_perf[all_reduce_perf]" \
+    --cluster_file C --config_file F --format json
+```
+
+**RCCL collective-selection gotcha (important — two tests behave differently):**
+
+- **`rccl_perf`** — the collective list is **hardcoded** in the test
+  (`@pytest.mark.parametrize`); it does **not** read `rccl_collective` from the
+  config file. To run specific collectives, **select the case id(s)**
+  (`test_rccl_perf[all_gather_perf]`) via `list-json` + `run-json`. Editing the
+  config's `rccl_collective` list has **no effect** here.
+- **`rccl_regression`** — the collective list **is** read from the config
+  (`rccl.rccl_collective`). To pick collectives, **edit the config file** (or
+  scaffold it with `copy-config`), then run the suite.
+
+So: `rccl_perf` → pick by case id; `rccl_regression` → pick by config. When in
+doubt, `cvs list-json <suite>` shows you exactly which cases exist after config
+is applied.
+
 **Targeting a subset.** `preflight` and `exec-json` take `--nodes a,b,c` to hit
 a rack or a suspect node instead of the whole fleet (omit for the whole cluster;
 an unknown node is exit 2).
