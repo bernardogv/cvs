@@ -54,7 +54,8 @@ wrap it in `ssh <headnode> '... --format json'`.
 2. validate   cvs validate --command <cmd> --cluster_file C [--config_file F] --format json
 3. preflight  cvs preflight --cluster_file C [--config_file F] --format json
 4. run        cvs run-json <suite> --cluster_file C --config_file F --format json
-5. compare    cvs compare peers node*.json --format json
+5. results    cvs results run.json --config config.json --format table  # busBw/collective vs expected
+6. compare    cvs compare peers node*.json --format json
               cvs compare baseline run.json --against <name> --format json
               cvs compare scaling run_2n.json run_4n.json ... --format json
 
@@ -162,6 +163,7 @@ common core:
 | `cvs validate` | offline check of cluster/config JSON for a command | yes |
 | `cvs preflight` | cluster sanity gate (SSH/ROCm/binaries/GPUs/firewall/RDMA) `--nodes` | yes |
 | `cvs run-json` | run a test, emit JSON results (not pytest text/HTML) | no |
+| `cvs results` | clean summary of one run: busBw per collective/size vs config thresholds | yes |
 | `cvs exec-json` | run a shell command on every node, per-node JSON (reachability/exit/output) | no |
 | `cvs compare` | peers / baseline / scaling comparison of rccl results | yes |
 | `cvs baseline` | capture/list/show/delete known-good baselines | capture writes |

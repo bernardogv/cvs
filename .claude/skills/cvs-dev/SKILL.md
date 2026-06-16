@@ -37,7 +37,9 @@ agent-driven cluster-validation engine. Full design:
 | `cvs/cli_plugins/exec_json_plugin.py` | `cvs/cli_plugins/unittests/test_exec_json_plugin.py` |
 | `cvs/cli_plugins/list_json_plugin.py` | `cvs/cli_plugins/unittests/test_list_json_plugin.py` |
 | `cvs/cli_plugins/schema_plugin.py` | `cvs/cli_plugins/unittests/test_schema_plugin.py` |
+| `cvs/cli_plugins/results_plugin.py` | `cvs/cli_plugins/unittests/test_results_plugin.py` |
 | `cvs/lib/input_validation_lib.py` | `cvs/lib/unittests/test_input_validation_lib.py` |
+| `cvs/lib/results_lib.py` | `cvs/lib/unittests/test_results_lib.py` |
 | `cvs/lib/input_schema_lib.py` | `cvs/lib/unittests/test_input_schema_lib.py` |
 | `cvs/lib/junit_report_lib.py` | `cvs/lib/unittests/test_junit_report_lib.py` |
 | `cvs/lib/node_select_lib.py` | `cvs/lib/unittests/test_node_select_lib.py` |
