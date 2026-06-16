@@ -54,6 +54,33 @@ in the catalog, give its plugin a `describe()` returning
 `base.py::SubcommandPlugin.describe`); commands without it still get a full arg
 listing for free.
 
+## Adding a new agent command (checklist)
+
+Follow the established pattern so the surface stays consistent (see any of
+preflight/validate/results for a template):
+
+1. **Tests first (TDD).** Write `test_<name>_lib.py` and/or
+   `test_<name>_plugin.py` before the code. The PostToolUse hook auto-runs the
+   matching test after each edit.
+2. **Pure logic in a new lib** `cvs/lib/<name>_lib.py` (validated input, returns
+   a report dict). **CLI in a new plugin** `cvs/cli_plugins/<name>_plugin.py`
+   subclassing `SubcommandPlugin`. New files only — never grow an upstream file.
+3. **Output contract.** Result-bearing commands build a report dict and render
+   via `validation_report.render(report, fmt)` (table/csv/json); discovery
+   commands emit `json.dumps`. Reuse `validation_report.FORMATS` for `--format`.
+4. **Exit codes:** `0` pass/ok, `1` validation failure, `2` usage/tool error.
+   Wrap input parsing in `try/except (ValueError, FileNotFoundError, OSError)` →
+   stderr + `sys.exit(2)`.
+5. **`describe()` metadata** on the plugin (summary, read_only, exit_codes,
+   input_files, examples) so it shows richly in `cvs describe`.
+6. **Validate inputs** so a wrong file errors (exit 2) instead of producing
+   misleading output — never fabricate. Reuse existing loaders
+   (`compare_lib.load_aggregated_rows`, etc.) where they fit.
+7. **Update docs in the same change:** add the file pair to the table above, and
+   add the command to the `cvs-operate` skill (loop + command reference).
+8. **Reinstall** so the console script sees it: `.cvs_venv/bin/pip install -q -e .`
+9. Files stay under 500 lines; run the suite + `make lint` before committing.
+
 ## Commands
 
 ```bash

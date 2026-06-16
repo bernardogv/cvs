@@ -39,10 +39,17 @@ if [ -n "$test_file" ]; then
     msgs="${msgs}Related tests FAILED (${test_file#"$repo_root"/}):\n${test_out}\n"
 fi
 
-# --- 3. 500-line limit -------------------------------------------------------
-lines=$(wc -l < "$fp" | tr -d ' ')
-if [ "$lines" -gt 500 ]; then
-  msgs="${msgs}FILE LENGTH: ${fp#"$repo_root"/} is ${lines} lines (limit 500). Split it before continuing.\n"
+# --- 3. 500-line limit (our files only) -------------------------------------
+# Skip files that exist in upstream/main: those are AMD's, and the rule is to
+# keep their diffs minimal, NOT split them. Only enforce the limit on new/ours
+# files (absent from upstream/main). Falls back to enforcing if upstream is not
+# fetched (cat-file fails -> treated as ours).
+rel="${fp#"$repo_root"/}"
+if ! git -C "$repo_root" cat-file -e "upstream/main:$rel" 2>/dev/null; then
+  lines=$(wc -l < "$fp" | tr -d ' ')
+  if [ "$lines" -gt 500 ]; then
+    msgs="${msgs}FILE LENGTH: ${rel} is ${lines} lines (limit 500). Split it before continuing.\n"
+  fi
 fi
 
 if [ -n "$msgs" ]; then
