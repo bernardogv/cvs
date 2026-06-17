@@ -1,4 +1,38 @@
 {
+  "permissions": {
+    "comment": "Safety baseline for driving CVS. Read-only cvs is auto-allowed; anything that touches the cluster (exec-json/run-json/baseline capture/raw ssh) must be human-approved; a few catastrophic local shell patterns are denied. The OPERATING environment (laptop/head node/MCP) should apply the same or stricter. NOTE: exec-json runs commands REMOTELY, so a remote destructive command is gated by the exec-json approval below, NOT the local deny list — the real controls are the least-privilege SSH user, scoped sudo, and these ask rules (see .claude/skills/cvs-operate 'Safety & SSH access').",
+    "deny": [
+      "Bash(rm -rf /:*)",
+      "Bash(rm -fr /:*)",
+      "Bash(rm -rf --no-preserve-root:*)",
+      "Bash(mkfs:*)",
+      "Bash(reboot:*)",
+      "Bash(shutdown:*)"
+    ],
+    "ask": [
+      "Bash(cvs exec-json:*)",
+      "Bash(*cvs exec-json:*)",
+      "Bash(cvs exec:*)",
+      "Bash(cvs run-json:*)",
+      "Bash(*cvs run-json:*)",
+      "Bash(cvs run:*)",
+      "Bash(cvs baseline capture:*)",
+      "Bash(*cvs baseline capture:*)",
+      "Bash(ssh:*)"
+    ],
+    "allow": [
+      "Bash(cvs describe:*)",
+      "Bash(cvs list-json:*)",
+      "Bash(cvs list:*)",
+      "Bash(cvs schema:*)",
+      "Bash(cvs validate:*)",
+      "Bash(cvs preflight:*)",
+      "Bash(cvs compare:*)",
+      "Bash(cvs results:*)",
+      "Bash(cvs generate:*)",
+      "Bash(cvs copy-config:*)"
+    ]
+  },
   "hooks": {
     "PreToolUse": [
       {

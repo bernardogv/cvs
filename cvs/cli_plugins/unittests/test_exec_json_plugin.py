@@ -64,6 +64,26 @@ class TestExecJsonPlugin(unittest.TestCase):
         host_arg = pssh_cls.call_args[0][1]
         self.assertEqual(host_arg, ['10.0.0.2'])
 
+    def test_dry_run_does_not_ssh(self):
+        cf = self._cluster({**CLUSTER, 'priv_key_file': '/k'})
+        args = self.parser.parse_args(
+            ['exec-json', '--cmd', 'rm -rf /data', '--cluster_file', cf, '--dry-run', '--format', 'json']
+        )
+        out, err = io.StringIO(), io.StringIO()
+        with (
+            mock.patch('cvs.cli_plugins.exec_json_plugin.Pssh') as pssh_cls,
+            redirect_stdout(out),
+            redirect_stderr(err),
+        ):
+            with self.assertRaises(SystemExit) as ctx:
+                self.plugin.run(args)
+        self.assertEqual(ctx.exception.code, 0)
+        pssh_cls.assert_not_called()  # the load-bearing assertion: no SSH happened
+        report = json.loads(out.getvalue())
+        self.assertTrue(report['dry_run'])
+        self.assertEqual(report['command'], 'rm -rf /data')
+        self.assertEqual({f['node'] for f in report['findings']}, {'10.0.0.1', '10.0.0.2'})
+
     def test_unknown_node_exits_2(self):
         cf = self._cluster({**CLUSTER, 'priv_key_file': '/k'})
         args = self.parser.parse_args(['exec-json', '--cmd', 'hostname', '--cluster_file', cf, '--nodes', '10.9.9.9'])

@@ -34,6 +34,12 @@ class ExecJsonPlugin(SubcommandPlugin):
         parser.add_argument('--cmd', required=True, help='Command to execute on all nodes')
         parser.add_argument('--cluster_file', required=True, help='Path to cluster configuration JSON file')
         parser.add_argument('--nodes', default=None, help='comma-separated node subset (default: whole cluster)')
+        parser.add_argument(
+            '--dry-run',
+            dest='dry_run',
+            action='store_true',
+            help='Preview the command and target nodes without executing anything (no SSH)',
+        )
         parser.add_argument('--timeout', type=int, default=None, help='Per-command read timeout in seconds')
         parser.add_argument('--format', choices=validation_report.FORMATS, default='json')
         return parser
@@ -51,7 +57,10 @@ class ExecJsonPlugin(SubcommandPlugin):
                     'optional_keys': ['username', 'priv_key_file', 'env_vars'],
                 },
             ],
-            'examples': ['cvs exec-json --cmd "cat /opt/rocm/.info/version" --cluster_file cluster.json --format json'],
+            'examples': [
+                'cvs exec-json --cmd "cat /opt/rocm/.info/version" --cluster_file cluster.json --format json',
+                'cvs exec-json --cmd "rocm-smi" --cluster_file cluster.json --dry-run   # preview only, no SSH',
+            ],
         }
 
     def run(self, args):
@@ -69,6 +78,9 @@ class ExecJsonPlugin(SubcommandPlugin):
         if not node_dict:
             raise ValueError('cluster file missing required "node_dict" key')
         nodes = node_select_lib.select_nodes(list(node_dict.keys()), args.nodes)
+        if getattr(args, 'dry_run', False):
+            # No SSH, no Pssh: just show what would run, on which nodes.
+            return remote_exec_lib.build_dry_run_report(args.cmd, nodes)
         phdl = Pssh(
             log,
             list(nodes),

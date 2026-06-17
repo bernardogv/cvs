@@ -60,6 +60,25 @@ def build_exec_report(cmd, raw_output, unreachable_hosts):
     }
 
 
+def build_dry_run_report(cmd, nodes):
+    '''Preview report: what exec-json WOULD run, without touching any node.
+
+    Same ``mode='exec'`` shape (so it renders identically), with ``dry_run`` set
+    and each target node listed as a ``would-run`` finding. Verdict is always
+    ``pass`` (a preview never fails / always exits 0).
+    '''
+    return {
+        'mode': 'exec',
+        'schema_version': SCHEMA_VERSION,
+        'verdict': 'pass',
+        'dry_run': True,
+        'command': cmd,
+        'nodes': [{'node': n, 'reachable': None, 'exit_code': None, 'output': ''} for n in nodes],
+        'findings': [{'node': n, 'action': 'would-run'} for n in nodes],
+        'warnings': [f'dry-run: would run {cmd!r} on {len(nodes)} node(s); nothing was executed'],
+    }
+
+
 def _extract_exit(out):
     '''(exit_code, output-with-sentinels-removed); exit_code is None if absent.'''
     matches = list(_RE_EXIT.finditer(out))

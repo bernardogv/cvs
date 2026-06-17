@@ -64,5 +64,16 @@ class TestBuildExecReport(unittest.TestCase):
         self.assertEqual([n['node'] for n in report['nodes']], ['10.0.0.1', '10.0.0.3'])
 
 
+class TestBuildDryRunReport(unittest.TestCase):
+    def test_preview_runs_nothing_and_lists_targets(self):
+        report = rx.build_dry_run_report('rocm-smi', ['10.0.0.1', '10.0.0.2'])
+        self.assertTrue(report['dry_run'])
+        self.assertEqual(report['verdict'], 'pass')  # preview always exits 0
+        self.assertEqual(report['command'], 'rocm-smi')
+        self.assertEqual({f['node'] for f in report['findings']}, {'10.0.0.1', '10.0.0.2'})
+        self.assertTrue(all(f['action'] == 'would-run' for f in report['findings']))
+        self.assertTrue(any('nothing was executed' in w for w in report['warnings']))
+
+
 if __name__ == '__main__':
     unittest.main()

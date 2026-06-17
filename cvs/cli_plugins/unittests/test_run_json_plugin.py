@@ -118,6 +118,37 @@ class TestRunJsonPlugin(unittest.TestCase):
         # only the one selected target, not the whole-file target
         self.assertNotIn('/cvs/tests/rccl/rccl_perf.py', pytest_args)
 
+    def test_dry_run_does_not_invoke_pytest(self):
+        args = self.parser.parse_args(
+            [
+                'run-json',
+                'rccl_perf',
+                'test_rccl_perf[all_reduce_perf]',
+                '--cluster_file',
+                'c.json',
+                '--config_file',
+                'cfg.json',
+                '--dry-run',
+                '--format',
+                'json',
+            ]
+        )
+        out, err = io.StringIO(), io.StringIO()
+        with (
+            mock.patch.object(self.plugin, '_find_test', return_value='cvs.tests.rccl.rccl_perf'),
+            mock.patch.object(self.plugin, 'get_test_file', return_value='/cvs/tests/rccl/rccl_perf.py'),
+            mock.patch('cvs.cli_plugins.run_json_plugin.pytest.main') as pmain,
+            redirect_stdout(out),
+            redirect_stderr(err),
+        ):
+            with self.assertRaises(SystemExit) as ctx:
+                self.plugin.run(args)
+        self.assertEqual(ctx.exception.code, 0)
+        pmain.assert_not_called()  # no test execution
+        report = json.loads(out.getvalue())
+        self.assertTrue(report['dry_run'])
+        self.assertIn('/cvs/tests/rccl/rccl_perf.py::test_rccl_perf[all_reduce_perf]', report['targets'])
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -17,6 +17,19 @@ import cvs.lib.validation_report as validation_report
 from .list_plugin import ListPlugin
 
 
+def _dry_run_report(targets):
+    '''Preview report: the pytest targets run-json WOULD execute, nothing run.'''
+    return {
+        'mode': 'run',
+        'schema_version': junit_report_lib.SCHEMA_VERSION,
+        'verdict': 'pass',
+        'dry_run': True,
+        'targets': targets,
+        'findings': [{'target': t, 'action': 'would-run'} for t in targets],
+        'warnings': [f'dry-run: would run {len(targets)} pytest target(s); nothing was executed'],
+    }
+
+
 class RunJsonPlugin(ListPlugin):
     '''Reuses ListPlugin's test discovery (_find_test/get_test_file), like RunPlugin.'''
 
@@ -29,6 +42,12 @@ class RunJsonPlugin(ListPlugin):
         parser.add_argument('function', nargs='*', help='Optional: specific test functions to run')
         parser.add_argument('--cluster_file', required=True, help='Path to cluster configuration JSON file')
         parser.add_argument('--config_file', required=True, help='Path to test configuration JSON file')
+        parser.add_argument(
+            '--dry-run',
+            dest='dry_run',
+            action='store_true',
+            help='Preview the pytest targets without running anything (no SSH, no test execution)',
+        )
         parser.add_argument('--format', choices=validation_report.FORMATS, default='json')
         parser.set_defaults(_plugin=self)
         return parser
@@ -58,15 +77,22 @@ Run-json Commands:
             sys.exit(2)
         test_file = self.get_test_file(module_path)
 
-        report = self._run_and_parse(test_file, args.function, args.cluster_file, args.config_file)
+        if getattr(args, 'dry_run', False):
+            report = _dry_run_report(self._targets(test_file, args.function))
+        else:
+            report = self._run_and_parse(test_file, args.function, args.cluster_file, args.config_file)
         print(validation_report.render(report, args.format))
         sys.exit(0 if report['verdict'] == 'pass' else 1)
+
+    @staticmethod
+    def _targets(test_file, functions):
+        return [f'{test_file}::{fn}' for fn in functions] if functions else [test_file]
 
     def _run_and_parse(self, test_file, functions, cluster_file, config_file):
         fd, xml_path = tempfile.mkstemp(prefix='cvs-junit-', suffix='.xml')
         os.close(fd)
         try:
-            targets = [f'{test_file}::{fn}' for fn in functions] if functions else [test_file]
+            targets = self._targets(test_file, functions)
             pytest_args = [
                 *targets,
                 f'--cluster_file={cluster_file}',
