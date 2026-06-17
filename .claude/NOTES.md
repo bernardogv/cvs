@@ -22,6 +22,16 @@ upstream `cvs/lib/rccl_lib.py`, not fork-specific tooling — worth PRing upstre
    `{mpi_dir}/mpirun`, the sample config used `.../openmpi/bin`, and the launcher
    default was `/usr/local/bin` — all reconciled to root. (fork PR #2)
 
+3. **Shared `build_mpirun_cmd()` helper**: `rccl_perf` and `rccl_regression` had
+   two near-duplicate inline `mpirun` builders that had drifted (flag order; the
+   regression-only `-x` NCCL overrides). Extracted one helper both call, so the
+   MPI envelope can't diverge again; confirmed both now render a byte-identical
+   envelope. STILL OPEN (separate from this refactor): the two paths pass the
+   `threads_per_gpu` config to *different* rccl-tests flags (`-t` vs `-g`) inside
+   their `test_cmd` — harmless at the default (1) but inconsistent; the key is
+   also misnamed given the 1-rank-per-GPU launch model. Decide intended meaning
+   before fixing.
+
 ## Results output scope — RCCL only, on purpose
 
 `cvs results` summarizes **only** the RCCL aggregated format (busBw per

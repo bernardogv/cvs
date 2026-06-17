@@ -328,5 +328,62 @@ class TestDetermineMpiPmlConfig(unittest.TestCase):
         self.assertEqual(ucx, "")
 
 
+class TestBuildMpirunCmd(unittest.TestCase):
+    """The shared mpirun envelope used by both rccl_perf and rccl_regression."""
+
+    def _cmd(self, **kw):
+        defaults = dict(
+            mpi_dir='/home/u/openmpi',
+            no_of_global_ranks=16,
+            ucx_params='-x UCX_UNIFIED_MODE=y -x UCX_NET_DEVICES=mlx5_0:1 ',
+            mpi_oob_port='eth0',
+            pml_param='--mca pml ucx',
+            test_cmd='bash -c "RCCL_BINARY"',
+        )
+        defaults.update(kw)
+        return rccl_lib.build_mpirun_cmd(**defaults)
+
+    def test_contains_the_mpi_envelope(self):
+        cmd = ' '.join(self._cmd().split())  # collapse whitespace like the shell does
+        for token in (
+            '/home/u/openmpi/bin/mpirun',
+            '--allow-run-as-root',
+            '-np 16',
+            '--hostfile /tmp/rccl_hosts_file.txt',
+            '--bind-to numa',
+            '-x UCX_NET_DEVICES=mlx5_0:1',
+            '--mca btl ^vader,openib',
+            '--mca btl_tcp_if_include eth0',
+            '--mca oob_tcp_if_include eth0',
+            '--mca pml ucx',
+        ):
+            self.assertIn(token, cmd)
+
+    def test_test_cmd_is_last(self):
+        cmd = ' '.join(self._cmd().split())
+        self.assertTrue(cmd.rstrip().endswith('bash -c "RCCL_BINARY"'))
+
+    def test_env_override_included_when_given(self):
+        cmd = ' '.join(self._cmd(env_override_params='-x NCCL_ALGO=Ring').split())
+        self.assertIn('-x NCCL_ALGO=Ring', cmd)
+
+    def test_env_override_absent_by_default(self):
+        self.assertNotIn('NCCL_', ' '.join(self._cmd().split()))
+
+    def test_perf_and_regression_share_one_envelope(self):
+        # Same inputs -> byte-identical command, regardless of caller. This is
+        # the whole point: the two paths can no longer drift in the MPI flags.
+        perf = self._cmd(test_cmd='T')
+        regr = rccl_lib.build_mpirun_cmd(
+            '/home/u/openmpi',
+            16,
+            '-x UCX_UNIFIED_MODE=y -x UCX_NET_DEVICES=mlx5_0:1 ',
+            'eth0',
+            '--mca pml ucx',
+            'T',
+        )
+        self.assertEqual(perf, regr)
+
+
 if __name__ == '__main__':
     unittest.main()

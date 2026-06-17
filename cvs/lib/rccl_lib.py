@@ -273,6 +273,36 @@ def determine_mpi_pml_config(mpi_pml, shdl, mpi_path, head_node, net_dev_list, u
     return pml_param, ucx_params
 
 
+def build_mpirun_cmd(
+    mpi_dir, no_of_global_ranks, ucx_params, mpi_oob_port, pml_param, test_cmd, env_override_params=''
+):
+    """Assemble the mpirun launch command shared by rccl_perf and rccl_regression.
+
+    Centralizes the MPI envelope — ranks, hostfile, NUMA binding, BTL/PML/UCX
+    transport flags, and the OOB interface — so the two callers cannot drift.
+    The rccl-tests invocation (``test_cmd``) and any NCCL_* overrides
+    (``env_override_params``, regression only; empty for perf) are passed in.
+
+    Note: ``ucx_params`` already carries its own trailing space (or is empty);
+    empty ``pml_param``/``env_override_params`` collapse harmlessly (the shell
+    folds the resulting double spaces).
+    """
+    return (
+        f'{mpi_dir}/bin/mpirun '
+        f'--allow-run-as-root '
+        f'-np {no_of_global_ranks} '
+        f'--hostfile /tmp/rccl_hosts_file.txt '
+        f'--bind-to numa '
+        f'{ucx_params}'
+        f'--mca btl ^vader,openib '
+        f'--mca btl_tcp_if_include {mpi_oob_port} '
+        f'--mca oob_tcp_if_include {mpi_oob_port} '
+        f'{pml_param} '
+        f'{env_override_params} '
+        f'{test_cmd}'
+    )
+
+
 def scan_rccl_logs(output):
     """
     Scan RCCL test stdout for known error/warning patterns and enforce failure criteria.
@@ -716,19 +746,16 @@ def rccl_regression(
     if env_overrides:
         env_override_params = ' '.join([f'-x {k}={v}' for k, v in env_overrides.items()])
 
-    # Build mpirun command
-    cmd = f'''{mpi_dir}/bin/mpirun \
-        --allow-run-as-root \
-        -np {no_of_global_ranks} \
-        --hostfile /tmp/rccl_hosts_file.txt \
-        --bind-to numa \
-        {ucx_params} \
-        --mca btl ^vader,openib \
-        --mca btl_tcp_if_include {mpi_oob_port} \
-        --mca oob_tcp_if_include {mpi_oob_port} \
-        {pml_param} \
-        {env_override_params} \
-        {test_cmd}'''
+    # Build mpirun command (shared envelope; see build_mpirun_cmd)
+    cmd = build_mpirun_cmd(
+        mpi_dir,
+        no_of_global_ranks,
+        ucx_params,
+        mpi_oob_port,
+        pml_param,
+        test_cmd,
+        env_override_params=env_override_params,
+    )
 
     log.info('%%%%%%%%%%%%%%%%')
     log.info("%s", cmd)
@@ -905,18 +932,8 @@ def rccl_perf(
             # Always wrap in bash to interpret && shell operator
             test_cmd = f'bash -c "{test_cmd}"'
 
-        # Build mpirun command
-        cmd = f'''{mpi_dir}/bin/mpirun --np {no_of_global_ranks} \
-        --allow-run-as-root \
-        --hostfile /tmp/rccl_hosts_file.txt \
-        --bind-to numa \
-        {ucx_params} \
-        --mca btl ^vader,openib \
-        --mca btl_tcp_if_include {mpi_oob_port} \
-        --mca oob_tcp_if_include {mpi_oob_port} \
-        {pml_param} \
-        {test_cmd}
-        '''
+        # Build mpirun command (shared envelope; see build_mpirun_cmd)
+        cmd = build_mpirun_cmd(mpi_dir, no_of_global_ranks, ucx_params, mpi_oob_port, pml_param, test_cmd)
 
         log.info('%%%%%%%%%%%%%%%%')
         log.info("%s", cmd)
