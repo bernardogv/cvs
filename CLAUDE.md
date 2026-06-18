@@ -8,9 +8,12 @@ JSON — never scrape human text.
 
 ## Skills (load these)
 
-- **`cvs-operate`** — the playbook for *operating* CVS to validate a cluster
-  (the discover → validate → preflight → run → compare loop, the JSON contract,
-  exit codes). Use it whenever the task is running validation against a cluster.
+- **`cvs-operate`** — the playbook for *operating* CVS to validate a cluster.
+  When asked to validate/run against a cluster, load it and follow its **Guided
+  operation — first-contact flow**: establish the head node, confirm cvs is
+  installed there (install with permission), find or build the cluster file,
+  preflight reachability, then guide the user to their goal. Discover over SSH;
+  only ask for what you can't see (head node, node credentials, the goal).
 - **`cvs-dev`** — background for *developing* in this fork (file map, test/lint
   commands, fork/upstream sync rules). Use it when changing the engine code.
 

@@ -43,6 +43,63 @@ Before running anything, determine where you are:
 Every command in this skill is written as `cvs ...`; when driving from a laptop,
 wrap it in `ssh <headnode> '... --format json'`.
 
+## Guided operation — first-contact flow (START HERE)
+
+When the user asks you to validate or run something on "the cluster", do **not**
+jump to commands. Walk this flow top to bottom. **Discover everything you can
+over SSH; only ask the user for what you genuinely cannot see.** Narrate each
+check and guide them — you are their operator.
+
+**1. Establish the target (ask only if unknown).**
+You're on the user's laptop; cvs runs on the **head node**. You need its SSH
+host/alias. If you don't know it, ask: *"What's the head node (SSH host/alias) I
+should run cvs on?"* (cluster files + cvs live there, not on the laptop.)
+
+**2. Reach the head node.** `ssh <headnode> 'echo ok; hostname'`
+- ✗ → say exactly what failed (unknown host / auth / timeout); ask them to fix
+  SSH or correct the alias. **Stop here** until reachable.
+- ✓ → continue.
+
+**3. Find cvs on the head node — install only with permission.**
+`ssh <headnode> 'command -v cvs || ls ~/*/.cvs_venv/bin/cvs 2>/dev/null'`
+- ✓ found → note how to invoke it (`source <dir>/.cvs_venv/bin/activate`), then
+  learn the surface: `cvs describe --format json`.
+- ✗ not found → check for a clone (`ls -d ~/cvs 2>/dev/null`). If absent, **ask
+  before installing**: *"cvs isn't on the head node — clone
+  github.com/bernardogv/cvs and `make install` there?"* Then do it.
+
+**4. Inputs — the cluster file.** `ssh <headnode> 'ls cluster*.json 2>/dev/null'`
+- ✓ exists → validate it: `cvs validate --command preflight --cluster_file <f>
+  --format json`. If invalid, show the findings and fix/ask.
+- ✗ missing → **build it.** Ask for node IPs/range, ssh username, key path, then
+  `cvs generate cluster_json --hosts <range> --username <u> --key_file <k>
+  --output_json_file cluster.json` → validate it.
+
+**5. Can we reach the nodes? (read-only)**
+`cvs preflight --cluster_file cluster.json --format json` → parse the JSON.
+- all reachable → report green, continue.
+- some unreachable → **diagnose, don't guess.** Name the nodes and the likely
+  cause (SSH / network / powered off). Preview a probe with
+  `cvs exec-json --cmd "echo ok" --nodes <bad> --dry-run`, then (with approval)
+  run it. Report per-node and ask how to proceed: fix, exclude via `--nodes`,
+  or stop.
+
+**6. What to check first — guide them to the goal.**
+Preflight is the gate. Once it's green, ask **what they want**: host-OS/platform
+checks, burn-in health (AGFHC/TransferBench/RVS), RCCL fabric, or a specific
+test? Then:
+- Find the suite: `cvs list-json` (and `cvs list-json <suite>` for its cases).
+- Config file: do they have one for that test? If not,
+  `cvs copy-config <path> --output config.json`, validate it, fill placeholders.
+- Run: `cvs run-json <suite> --cluster_file cluster.json --config_file
+  config.json --format json` → then `cvs results` / `cvs compare`.
+
+**Ask vs discover.** Discover over SSH: reachability, the cvs path, existing
+files, node health. Only *ask* for: the head-node identity, node IP
+range/credentials when building the cluster file, and their **goal**. Always
+`--dry-run` + get approval before anything that mutates or runs on the fleet
+(see *Safety & SSH access*).
+
 ## The loop
 
 ```
