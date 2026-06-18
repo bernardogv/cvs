@@ -921,9 +921,14 @@ def rccl_perf(
         dtype_result_file = f'{base_path.parent}/{base_path.stem}_{dtype}.json'
         log.info(f'Running {test_name} with dtype={dtype}')
 
+        # threads_per_gpu -> rccl-tests -t (nthreads per process), matching
+        # rccl_regression. CVS launches one MPI rank per GPU (np = nodes *
+        # local_ranks), so each process drives 1 GPU and this stays 1; -g
+        # (GPUs/thread) keeps its default of 1. (Was -g here, inconsistent with
+        # regression's -t — harmless at the default but divergent above it.)
         # Wrap test binary in shell to source env script if provided
         test_cmd = f'{rccl_tests_dir}/{test_name} -b {start_msg_size} -e {end_msg_size} -f {step_function} \
-            -g {threads_per_gpu} -c {check_iteration_count} -w {warmup_iterations} \
+            -t {threads_per_gpu} -c {check_iteration_count} -w {warmup_iterations} \
             -d {dtype} -n {no_of_iterations} -N {no_of_cycles}{extra_flags} -Z json {output_flag} {dtype_result_file}'
 
         if env_file and str(env_file).lower() != 'none':

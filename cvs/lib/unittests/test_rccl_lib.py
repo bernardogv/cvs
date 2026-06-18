@@ -4,6 +4,47 @@ from unittest.mock import patch
 import cvs.lib.rccl_lib as rccl_lib
 
 
+class _CaptureShdl:
+    """Fake ssh handle: records commands; returns benign output so rccl_perf /
+    rccl_regression reach (and emit) their mpirun command before result reads."""
+
+    HEAD = '10.0.0.1'
+
+    def __init__(self):
+        self.commands = []
+
+    def exec(self, cmd, timeout=None, print_console=True):
+        self.commands.append(cmd)
+        return {self.HEAD: 'OLD'} if 'strings' in cmd else {self.HEAD: ''}
+
+
+def _render_rccl_cmd(fn, threads_per_gpu, **kw):
+    nodes = ['10.0.0.1', '10.0.0.2']
+    mpi = {'mpi_dir': '/opt/ompi', 'no_of_nodes': 2, 'no_of_local_ranks': 8, 'mpi_pml': 'ucx'}
+    rtp = {'rccl_tests_dir': '/r/build', 'threads_per_gpu': threads_per_gpu, 'data_types': ['float']}
+    sh = _CaptureShdl()
+    with patch.object(rccl_lib, 'scan_rccl_logs'), patch.object(rccl_lib, 'fail_test'):
+        try:
+            fn(None, sh, 'all_reduce_perf', 'none', mpi, rtp, {}, nodes, nodes, **kw)
+        except Exception:
+            pass
+    return next((c for c in sh.commands if 'mpirun' in c), '')
+
+
+class TestThreadsPerGpuFlag(unittest.TestCase):
+    """threads_per_gpu must map to the same rccl-tests flag (-t) in both runners."""
+
+    def test_rccl_perf_uses_t_not_g(self):
+        cmd = _render_rccl_cmd(rccl_lib.rccl_perf, 3)
+        self.assertIn(' -t 3 ', cmd)
+        self.assertNotIn(' -g 3 ', cmd)  # the old, inconsistent flag
+
+    def test_rccl_regression_uses_t(self):
+        cmd = _render_rccl_cmd(rccl_lib.rccl_regression, 3, env_overrides=None)
+        self.assertIn(' -t 3 ', cmd)
+        self.assertNotIn(' -g 3 ', cmd)
+
+
 class TestRcclLib(unittest.TestCase):
     @patch('cvs.lib.rccl_lib.fail_test')
     def test_check_avg_bus_bw_success(self, mock_fail_test):

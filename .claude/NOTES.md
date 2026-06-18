@@ -26,11 +26,11 @@ upstream `cvs/lib/rccl_lib.py`, not fork-specific tooling — worth PRing upstre
    two near-duplicate inline `mpirun` builders that had drifted (flag order; the
    regression-only `-x` NCCL overrides). Extracted one helper both call, so the
    MPI envelope can't diverge again; confirmed both now render a byte-identical
-   envelope. STILL OPEN (separate from this refactor): the two paths pass the
-   `threads_per_gpu` config to *different* rccl-tests flags (`-t` vs `-g`) inside
-   their `test_cmd` — harmless at the default (1) but inconsistent; the key is
-   also misnamed given the 1-rank-per-GPU launch model. Decide intended meaning
-   before fixing.
+   envelope. RESOLVED: `threads_per_gpu` now maps to rccl-tests `-t` (nthreads)
+   in BOTH runners (rccl_perf was `-g`, inconsistent). CVS launches one MPI rank
+   per GPU, so each process drives 1 GPU and the value stays 1; behavior is
+   identical at the default, consistent above it. Locked by tests rendering the
+   real command for both runners.
 
 ## Results output scope — RCCL only, on purpose
 
