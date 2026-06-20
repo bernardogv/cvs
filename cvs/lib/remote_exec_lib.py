@@ -13,6 +13,24 @@ EXIT_SENTINEL = '__CVS_EXIT__'
 _UNREACHABLE_MARKER = 'ABORT: Host Unreachable Error'
 _RE_EXIT = re.compile(r'__CVS_EXIT__(\d+)__')
 
+# parallel-ssh surfaces connection/resolution/auth failures as error TEXT in the
+# per-host output, not always via unreachable_hosts. When the transport never
+# comes up the command never runs, so the node is not reachable — these markers
+# catch the cases unreachable_hosts misses (seen live: DNS + auth failures).
+_UNREACHABLE_SIGNATURES = (
+    _UNREACHABLE_MARKER,
+    'Unknown host',
+    'Authentication error',
+    'Connection refused',
+    'Connection reset',
+    'No route to host',
+    'timed out',
+)
+
+
+def _is_unreachable(host, out, unreachable):
+    return host in unreachable or any(sig in out for sig in _UNREACHABLE_SIGNATURES)
+
 
 def wrap_command(cmd):
     '''Append an exit-code marker so the per-host rc survives in merged output.'''
@@ -37,7 +55,7 @@ def build_exec_report(cmd, raw_output, unreachable_hosts):
     findings = []
     for host, out in raw_output.items():
         out = out or ''
-        if host in unreachable or _UNREACHABLE_MARKER in out:
+        if _is_unreachable(host, out, unreachable):
             nodes.append({'node': host, 'reachable': False, 'exit_code': None, 'output': out.strip()})
             findings.append({'node': host, 'issue': 'unreachable'})
             continue

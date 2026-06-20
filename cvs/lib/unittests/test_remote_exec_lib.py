@@ -46,12 +46,28 @@ class TestBuildExecReport(unittest.TestCase):
         self.assertEqual(report['findings'][0]['issue'], 'unreachable')
 
     def test_missing_sentinel_flags_no_exit_code(self):
-        # e.g. command was killed before the echo ran.
+        # e.g. command was killed before the echo ran but the host WAS reached.
         raw = {'10.0.0.1': 'partial output with no marker'}
         report = rx.build_exec_report('sleep 999', raw, [])
         self.assertEqual(report['verdict'], 'fail')
+        self.assertTrue(report['nodes'][0]['reachable'])  # connected; command just produced no sentinel
         self.assertIsNone(report['nodes'][0]['exit_code'])
         self.assertIn('no exit code', report['findings'][0]['issue'])
+
+    def test_connection_error_text_is_unreachable(self):
+        # parallel-ssh surfaces DNS/auth/refused failures as error TEXT, not via
+        # unreachable_hosts — the command never ran, so reachable must be False.
+        # (Both shapes observed live against a real cluster.)
+        for err in (
+            "('Unknown host %s - %s', 'node1', 'nodename nor servname provided, or not known')",
+            "('Authentication error while connecting to %s:%s', '127.0.0.1', 22)",
+            'ssh: connect to host node9 port 22: Connection refused',
+        ):
+            report = rx.build_exec_report('hostname', {'h': err}, [])
+            node = report['nodes'][0]
+            self.assertFalse(node['reachable'], err)
+            self.assertIsNone(node['exit_code'])
+            self.assertEqual(report['findings'][0]['issue'], 'unreachable')
 
     def test_findings_have_uniform_keys(self):
         raw = {'a': 'x\n__CVS_EXIT__1__', 'b': 'y\nABORT: Host Unreachable Error'}
