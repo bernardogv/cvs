@@ -32,7 +32,8 @@ class TestDescribeArguments(unittest.TestCase):
         by_name = {a['name']: a for a in args}
         self.assertIn('--cluster_file', by_name)
         self.assertTrue(by_name['--cluster_file']['required'])
-        self.assertTrue(by_name['--cluster_file']['takes_value'])
+        # takes_value is omitted when True (the default) to keep the catalog small.
+        self.assertTrue(by_name['--cluster_file'].get('takes_value', True))
         # --format carries argparse choices an agent can pick from.
         self.assertIn('--format', by_name)
         self.assertIsNotNone(by_name['--format']['choices'])
@@ -139,6 +140,14 @@ class TestDescribePluginRun(unittest.TestCase):
         code, out, _ = self._run(['describe', '--format', 'table'])
         self.assertEqual(code, 0)
         self.assertIn('preflight', out)
+
+    def test_brief_drops_detail_and_shrinks(self):
+        code, out, _ = self._run(['describe', '--brief'])
+        self.assertEqual(code, 0)
+        cat = json.loads(out)
+        cmd = next(c for c in cat['commands'] if c['name'] == 'preflight')
+        self.assertEqual(set(cmd), {'name', 'summary', 'read_only'})
+        self.assertLess(len(out), len(self._run(['describe'])[1]))
 
 
 if __name__ == '__main__':

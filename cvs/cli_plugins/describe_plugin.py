@@ -42,7 +42,7 @@ def _arg_descriptor(action):
     default = action.default
     if default is argparse.SUPPRESS:
         default = None
-    return {
+    full = {
         'name': name,
         'positional': positional,
         'required': required,
@@ -52,6 +52,11 @@ def _arg_descriptor(action):
         'takes_value': takes_value,
         'nargs': action.nargs,
     }
+    # Drop keys at their "absent" value to keep the catalog small — an agent
+    # parsing describe assumes these defaults when a key is missing.
+    # ponytail: omission-as-default; if a consumer needs an explicit null, stop dropping that key.
+    absent = {'positional': False, 'help': '', 'choices': None, 'default': None, 'takes_value': True, 'nargs': None}
+    return {k: v for k, v in full.items() if k not in absent or absent[k] != v}
 
 
 def describe_arguments(parser):
@@ -135,9 +140,9 @@ def render_table(catalog):
     for cmd in catalog['commands']:
         flag = ' [read-only]' if cmd.get('read_only') else ''
         lines.append(f"  {cmd['name']}{flag}  {cmd['summary']}".rstrip())
-        for arg in cmd['arguments']:
-            req = 'required' if arg['required'] else 'optional'
-            choices = f" {{{','.join(arg['choices'])}}}" if arg['choices'] else ''
+        for arg in cmd.get('arguments', []):
+            req = 'required' if arg.get('required') else 'optional'
+            choices = f" {{{','.join(arg['choices'])}}}" if arg.get('choices') else ''
             lines.append(f"      {arg['name']}{choices} ({req})")
         for sub_name in cmd.get('subcommands', {}):
             lines.append(f"      <{sub_name}>")
@@ -155,6 +160,11 @@ class DescribePlugin(SubcommandPlugin):
         parser.set_defaults(_plugin=self)
         parser.add_argument('--format', choices=('json', 'table'), default='json')
         parser.add_argument('--command', default=None, help='Describe only this command')
+        parser.add_argument(
+            '--brief',
+            action='store_true',
+            help='Names + one-line summaries only (cheap cold-start scan; drill in with --command)',
+        )
         return parser
 
     def describe(self):
@@ -173,6 +183,11 @@ class DescribePlugin(SubcommandPlugin):
                 print(f'error: unknown command {args.command!r}; run "cvs describe" to list commands', file=sys.stderr)
                 sys.exit(2)
             catalog = {**catalog, 'commands': matches}
+        if getattr(args, 'brief', False):
+            brief = [
+                {'name': c['name'], 'summary': c['summary'], 'read_only': c['read_only']} for c in catalog['commands']
+            ]
+            catalog = {**catalog, 'commands': brief}
         if args.format == 'json':
             import json
 
