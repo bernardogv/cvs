@@ -121,6 +121,8 @@ def build_command(plugin):
         'input_files': meta.get('input_files', []),
         'examples': meta.get('examples') or _epilog_examples(plugin),
     }
+    if meta.get('output'):
+        command['output'] = meta['output']
     if subcommands:
         command['subcommands'] = subcommands
     return command
@@ -133,7 +135,12 @@ def build_catalog(plugins=None):
 
         plugins = discover_plugins()
     commands = sorted((build_command(p) for p in plugins), key=lambda c: c['name'])
-    return {'schema_version': SCHEMA_VERSION, 'cvs_version': _cvs_version(), 'commands': commands}
+    return {
+        'schema_version': SCHEMA_VERSION,
+        'cvs_version': _cvs_version(),
+        'response_contract': validation_report.RESPONSE_CONTRACT,
+        'commands': commands,
+    }
 
 
 def render_table(catalog):

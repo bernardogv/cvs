@@ -61,6 +61,12 @@ class ExecJsonPlugin(SubcommandPlugin):
                 'cvs exec-json --cmd "cat /opt/rocm/.info/version" --cluster_file cluster.json --format json',
                 'cvs exec-json --cmd "rocm-smi" --cluster_file cluster.json --dry-run   # preview only, no SSH',
             ],
+            'output': {
+                'envelope': 'response_contract',
+                'finding_keys': ['node', 'issue'],
+                'extra_keys': ['command', 'nodes'],
+                'nodes_item_keys': ['node', 'reachable', 'exit_code', 'output'],
+            },
         }
 
     def run(self, args):

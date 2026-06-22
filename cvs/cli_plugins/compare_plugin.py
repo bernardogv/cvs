@@ -53,6 +53,12 @@ class ComparePlugin(SubcommandPlugin):
                 'cvs compare baseline run.json --against gb200-2node --format json',
                 'cvs compare scaling run_2n.json run_4n.json run_8n.json --format json',
             ],
+            'output': {
+                'envelope': 'response_contract',
+                'finding_keys': ['collective', 'size', 'deviation_pct'],
+                'extra_keys': ['improvements', 'tolerance_pct'],
+                'note': 'finding_keys vary by mode (peers/baseline/scaling); above is representative',
+            },
         }
 
     def run(self, args):

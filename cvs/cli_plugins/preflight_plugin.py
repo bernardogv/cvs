@@ -51,6 +51,11 @@ class PreflightPlugin(SubcommandPlugin):
                 },
             ],
             'examples': ['cvs preflight --cluster_file cluster.json --format json'],
+            'output': {
+                'envelope': 'response_contract',
+                'finding_keys': ['node', 'check', 'ok'],
+                'extra_keys': ['checks', 'nodes'],
+            },
         }
 
     def run(self, args):

@@ -84,6 +84,20 @@ class TestBuildCatalog(unittest.TestCase):
         cluster = next(f for f in cmd['input_files'] if f['arg'] == '--cluster_file')
         self.assertIn('node_dict', cluster['required_keys'])
 
+    def test_catalog_exposes_response_contract(self):
+        # An agent can validate RESPONSES, not just inputs — impossible for a
+        # pure-prompt layer over unmodified CVS.
+        catalog = describe_plugin.build_catalog(plugins=[PreflightPlugin()])
+        contract = catalog['response_contract']
+        self.assertEqual(contract['$schema'], 'https://json-schema.org/draft/2020-12/schema')
+        titles = {branch['title'] for branch in contract['oneOf']}
+        self.assertEqual(titles, {'report', 'error'})
+
+    def test_command_declares_its_output_shape(self):
+        cmd = describe_plugin.build_catalog(plugins=[PreflightPlugin()])['commands'][0]
+        self.assertEqual(cmd['output']['finding_keys'], ['node', 'check', 'ok'])
+        self.assertEqual(cmd['output']['envelope'], 'response_contract')
+
     def test_upstream_command_degrades_gracefully(self):
         # run has no describe(); it must still produce a full arg listing with
         # defaulted semantic fields and never raise.

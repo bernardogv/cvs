@@ -68,6 +68,11 @@ Run-json Commands:
                 {'arg': '--config_file', 'format': 'json', 'required_keys': [], 'optional_keys': ['rccl']},
             ],
             'examples': ['cvs run-json agfhc --cluster_file cluster.json --config_file config.json --format json'],
+            'output': {
+                'envelope': 'response_contract',
+                'finding_keys': ['test', 'outcome', 'message'],
+                'extra_keys': ['tests', 'summary'],
+            },
         }
 
     def run(self, args):

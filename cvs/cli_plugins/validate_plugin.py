@@ -41,6 +41,10 @@ class ValidatePlugin(SubcommandPlugin):
             'examples': [
                 'cvs validate --command preflight --cluster_file cluster.json --format json',
             ],
+            'output': {
+                'envelope': 'response_contract',
+                'finding_keys': ['file', 'arg', 'issue'],
+            },
         }
 
     def run(self, args):

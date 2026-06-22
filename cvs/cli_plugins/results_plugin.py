@@ -41,6 +41,10 @@ class ResultsPlugin(SubcommandPlugin):
                 'cvs results run.json --format table',
                 'cvs results run.json --config config.json --format json',
             ],
+            'output': {
+                'envelope': 'response_contract',
+                'finding_keys': ['collective', 'size', 'busBw_GB_s', 'expected', 'status'],
+            },
         }
 
     def run(self, args):

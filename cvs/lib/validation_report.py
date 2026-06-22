@@ -10,6 +10,46 @@ import sys
 
 FORMATS = ('table', 'csv', 'json')
 
+# The shape every agent command returns on --format json. Exposed by `cvs
+# describe` so an agent can VALIDATE responses, not just inputs — something a
+# pure-prompt layer over unmodified CVS structurally can't offer.
+RESPONSE_CONTRACT = {
+    '$schema': 'https://json-schema.org/draft/2020-12/schema',
+    'title': 'cvs agent-command response',
+    'description': 'Common envelope returned by validate/preflight/compare/run-json/exec-json/results.',
+    'type': 'object',
+    'oneOf': [
+        {
+            'title': 'report',
+            'required': ['mode', 'schema_version', 'verdict'],
+            'properties': {
+                'mode': {'enum': ['validate', 'preflight', 'compare', 'run', 'exec', 'results']},
+                'schema_version': {'type': 'integer'},
+                'verdict': {'enum': ['pass', 'fail']},
+                'findings': {
+                    'type': 'array',
+                    'items': {'type': 'object'},
+                    'description': 'actionable items; keys are uniform within a report — see each command.output.finding_keys',
+                },
+                'warnings': {'type': 'array', 'items': {'type': 'string'}},
+            },
+        },
+        {
+            'title': 'error',
+            'required': ['mode', 'verdict', 'error'],
+            'properties': {
+                'mode': {'const': 'error'},
+                'verdict': {'const': 'error'},
+                'error': {
+                    'type': 'object',
+                    'required': ['message'],
+                    'properties': {'message': {'type': 'string'}, 'hint': {'type': ['string', 'null']}},
+                },
+            },
+        },
+    ],
+}
+
 
 def emit_error(message, fmt='json', hint=None, exit_code=2):
     '''Emit a usage/tool error on the SAME contract, then exit.
