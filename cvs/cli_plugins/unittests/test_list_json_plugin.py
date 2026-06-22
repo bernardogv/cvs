@@ -71,9 +71,12 @@ class TestListJsonPlugin(unittest.TestCase):
         self.assertEqual(catalog['total'], 2)
 
     def test_unknown_package_exits_2(self):
-        code, _, err = self._run(['list-json', '--package', 'nope'])
+        code, out, _ = self._run(['list-json', '--package', 'nope'])
         self.assertEqual(code, 2)
-        self.assertIn('nope', err)
+        # structured error on the JSON contract (stdout), not scraped stderr text.
+        err_report = json.loads(out)
+        self.assertEqual(err_report['verdict'], 'error')
+        self.assertIn('nope', err_report['error']['message'])
 
 
 COLLECT_OUTPUT = '''\
@@ -138,9 +141,11 @@ class TestSuiteDrillIn(unittest.TestCase):
         self.assertIn('test_rccl_perf[all_reduce_perf]', ids)
 
     def test_unknown_suite_exits_2(self):
-        code, _, err = self._run(['list-json', 'no_such_suite'])
+        code, out, _ = self._run(['list-json', 'no_such_suite'])
         self.assertEqual(code, 2)
-        self.assertIn('no_such_suite', err)
+        err_report = json.loads(out)
+        self.assertEqual(err_report['verdict'], 'error')
+        self.assertIn('no_such_suite', err_report['error']['message'])
 
 
 if __name__ == '__main__':

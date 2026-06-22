@@ -6,8 +6,32 @@ json output is the machine contract; table is for humans; csv is findings-only.
 import csv
 import io
 import json
+import sys
 
 FORMATS = ('table', 'csv', 'json')
+
+
+def emit_error(message, fmt='json', hint=None, exit_code=2):
+    '''Emit a usage/tool error on the SAME contract, then exit.
+
+    With ``fmt='json'`` an agent never has to parse a string — even on failure:
+    a structured ``{verdict:"error", error:{message,hint}}`` goes to stdout (the
+    one stream it already reads). For human formats the text goes to stderr.
+    Always calls ``sys.exit(exit_code)`` (default 2 = usage/tool error).
+    '''
+    if fmt == 'json':
+        report = {
+            'mode': 'error',
+            'schema_version': 1,
+            'verdict': 'error',
+            'error': {'message': message, 'hint': hint},
+        }
+        print(json.dumps(report, indent=2))
+    else:
+        print(f'error: {message}', file=sys.stderr)
+        if hint:
+            print(f'hint: {hint}', file=sys.stderr)
+    sys.exit(exit_code)
 
 
 def render(report, fmt):

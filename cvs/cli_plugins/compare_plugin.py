@@ -59,8 +59,7 @@ class ComparePlugin(SubcommandPlugin):
         try:
             report = self._build_report(args)
         except (ValueError, FileNotFoundError, OSError) as exc:
-            print(f'error: {exc}', file=sys.stderr)
-            sys.exit(2)
+            validation_report.emit_error(str(exc), args.format)
         print(validation_report.render(report, args.format))
         sys.exit(0 if report['verdict'] == 'pass' else 1)
 

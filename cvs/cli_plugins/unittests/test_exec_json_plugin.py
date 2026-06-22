@@ -87,12 +87,14 @@ class TestExecJsonPlugin(unittest.TestCase):
     def test_unknown_node_exits_2(self):
         cf = self._cluster({**CLUSTER, 'priv_key_file': '/k'})
         args = self.parser.parse_args(['exec-json', '--cmd', 'hostname', '--cluster_file', cf, '--nodes', '10.9.9.9'])
-        err = io.StringIO()
-        with redirect_stderr(err):
+        out = io.StringIO()
+        with redirect_stdout(out):
             with self.assertRaises(SystemExit) as ctx:
                 self.plugin.run(args)
         self.assertEqual(ctx.exception.code, 2)
-        self.assertIn('10.9.9.9', err.getvalue())
+        # structured error on the JSON contract (stdout), not scraped stderr text.
+        self.assertEqual(json.loads(out.getvalue())['verdict'], 'error')
+        self.assertIn('10.9.9.9', json.loads(out.getvalue())['error']['message'])
 
     def test_nonzero_exit_exits_1(self):
         cf = self._cluster({**CLUSTER, 'priv_key_file': '/k'})

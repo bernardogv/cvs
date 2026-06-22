@@ -132,9 +132,12 @@ class TestDescribePluginRun(unittest.TestCase):
         self.assertEqual([c['name'] for c in catalog['commands']], ['preflight'])
 
     def test_unknown_command_exits_2(self):
-        code, _, err = self._run(['describe', '--command', 'nope'])
+        code, out, _ = self._run(['describe', '--command', 'nope'])
         self.assertEqual(code, 2)
-        self.assertIn('nope', err)
+        # structured error on the JSON contract (stdout), not scraped stderr text.
+        err_report = json.loads(out)
+        self.assertEqual(err_report['verdict'], 'error')
+        self.assertIn('nope', err_report['error']['message'])
 
     def test_table_format_renders(self):
         code, out, _ = self._run(['describe', '--format', 'table'])

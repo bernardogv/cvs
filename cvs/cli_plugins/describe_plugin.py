@@ -12,6 +12,8 @@ import importlib.metadata
 import re
 import sys
 
+import cvs.lib.validation_report as validation_report
+
 from .base import SubcommandPlugin
 
 SCHEMA_VERSION = 1
@@ -180,8 +182,9 @@ class DescribePlugin(SubcommandPlugin):
         if args.command:
             matches = [c for c in catalog['commands'] if c['name'] == args.command]
             if not matches:
-                print(f'error: unknown command {args.command!r}; run "cvs describe" to list commands', file=sys.stderr)
-                sys.exit(2)
+                validation_report.emit_error(
+                    f'unknown command {args.command!r}', args.format, hint='run "cvs describe" to list commands'
+                )
             catalog = {**catalog, 'commands': matches}
         if getattr(args, 'brief', False):
             brief = [

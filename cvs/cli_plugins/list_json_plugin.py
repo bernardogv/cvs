@@ -19,6 +19,8 @@ from io import StringIO
 
 import pytest
 
+import cvs.lib.validation_report as validation_report
+
 from .list_plugin import ListPlugin
 
 SCHEMA_VERSION = 1
@@ -100,8 +102,9 @@ class ListJsonPlugin(ListPlugin):
         if package:
             pkgs = [p for p in catalog['packages'] if p['package'] == package]
             if not pkgs:
-                print(f'error: unknown package {package!r}; run "cvs list-json" to list packages', file=sys.stderr)
-                sys.exit(2)
+                validation_report.emit_error(
+                    f'unknown package {package!r}', 'json', hint='run "cvs list-json" to list packages'
+                )
             catalog = {**catalog, 'packages': pkgs, 'total': sum(len(p['suites']) for p in pkgs)}
         print(json.dumps(catalog, indent=2))
         sys.exit(0)
@@ -109,8 +112,7 @@ class ListJsonPlugin(ListPlugin):
     def _emit_suite(self, suite):
         module_path = self._find_test(suite)
         if not module_path:
-            print(f'error: unknown suite {suite!r}; run "cvs list-json" to list suites', file=sys.stderr)
-            sys.exit(2)
+            validation_report.emit_error(f'unknown suite {suite!r}', 'json', hint='run "cvs list-json" to list suites')
         test_file = self.get_test_file(module_path)
         cases = parse_collected_cases(self._collect_cases(test_file))
         detail = {

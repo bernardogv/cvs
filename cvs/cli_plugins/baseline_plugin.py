@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import cvs.lib.compare_lib as compare_lib
+import cvs.lib.validation_report as validation_report
 from cvs.lib.parallel_ssh_lib import Pssh
 
 from .base import SubcommandPlugin
@@ -74,8 +75,7 @@ class BaselinePlugin(SubcommandPlugin):
         try:
             self._dispatch(args)
         except (ValueError, FileNotFoundError, OSError) as exc:
-            print(f'error: {exc}', file=sys.stderr)
-            sys.exit(2)
+            validation_report.emit_error(str(exc), getattr(args, 'format', 'json'))
         sys.exit(0)
 
     def _dispatch(self, args):

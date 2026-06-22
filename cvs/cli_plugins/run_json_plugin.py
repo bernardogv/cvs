@@ -73,8 +73,9 @@ Run-json Commands:
     def run(self, args):
         module_path = self._find_test(args.test)
         if not module_path:
-            print(f"error: unknown test '{args.test}'; use 'cvs list' to see available tests", file=sys.stderr)
-            sys.exit(2)
+            validation_report.emit_error(
+                f"unknown test '{args.test}'", args.format, hint="use 'cvs list' to see available tests"
+            )
         test_file = self.get_test_file(module_path)
 
         if getattr(args, 'dry_run', False):
