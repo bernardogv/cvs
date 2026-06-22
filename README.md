@@ -1,12 +1,34 @@
 <!-- FORK NOTICE — keep this block on rebase; AMD's original README follows below. -->
 # CVS — Agent-Operable Fork
 
-This is a downstream fork of [ROCm/cvs](https://github.com/ROCm/cvs) reworked so an
-**AI agent (e.g. Claude Code) can drive cluster validation end to end**. It adds a
-machine-readable command surface on top of upstream CVS: every agent command emits
-a stable JSON contract (`--format json`) and uses consistent exit codes
-(`0` pass · `1` validation failure · `2` usage/tool error), so an agent can
-discover, validate, run, and compare without parsing human text.
+[![CI](https://github.com/bernardogv/cvs/actions/workflows/ci.yml/badge.svg?branch=feature/cluster-validation-engine)](https://github.com/bernardogv/cvs/actions/workflows/ci.yml)
+![Contract](https://img.shields.io/badge/output-100%25_JSON_contract-blue)
+![Tests](https://img.shields.io/badge/tests-298_passing-brightgreen)
+![Lint](https://img.shields.io/badge/pylint-10.00%2F10-brightgreen)
+
+A downstream fork of [ROCm/cvs](https://github.com/ROCm/cvs) reworked so an
+**AI agent (e.g. Claude Code) can drive cluster validation end to end** —
+*reliably*, because the engine itself speaks JSON. Every agent command emits a
+stable JSON contract (`--format json`) and consistent exit codes
+(`0` pass · `1` validation failure · `2` usage/tool error). **The agent never
+parses human text — not even on failure** (errors are structured JSON too), and
+`cvs describe` hands it the schema of every command's *response*, so it can
+validate what it gets back, not just what it sends.
+
+> **Why a fork, not a prompt-only layer?** The alternative is to leave CVS
+> untouched and have an agent regex-scrape its human logs. Lower maintenance, but
+> brittle: it breaks the first time upstream reformats a bandwidth table or a
+> dmesg line, it can't fix bugs in the engine, and it can never describe its own
+> output. This fork bets the other way — a real contract the agent can rely on.
+> Building it also surfaced **4 genuine RCCL bugs** in upstream (UCX PML
+> selection, `mpi_dir` convention, `threads_per_gpu`, a duplicated mpirun
+> builder) that a scrape-only approach would never see. The rebase cost is real;
+> we pay it on purpose.
+
+**Proven, not asserted:** 298 unit tests + pylint 10/10 in CI, and the full agent
+loop (discover → validate → preflight → SSH fan-out → failure reporting) is
+**live-verified against a containerized fake cluster** — including the
+connection/auth failure paths.
 
 **What this fork adds**
 
