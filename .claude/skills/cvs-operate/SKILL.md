@@ -10,6 +10,13 @@ CVS is a cluster-validation CLI built to be driven by an agent: every command
 emits a **stable JSON contract** on `--format json` with **consistent exit
 codes**. Drive them; parse the JSON; never scrape human text.
 
+**Load on demand** (read only when the situation calls for it, to keep this
+skill cheap):
+- **`AUTO_HEAL.md`** — when any report returns `verdict: fail`: diagnose from the
+  structured finding, propose a previewed fix, escalate (with Jira if connected).
+- **`WORKFLOWS.md`** — when the goal is multi-suite ("qualify", "burn-in",
+  "training-ready"): pre-chained suite flows that branch on each step's verdict.
+
 ## Where `cvs` runs — check this FIRST
 
 `cvs` must run where it can SSH to **every** node — almost always the **head
